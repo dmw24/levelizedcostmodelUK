@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LCOE Calculator</title>
 
-  <!-- Link to your adapted style -->
+  <!-- Link to your external CSS -->
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Chart.js + PapaParse + Tippy.js (for tooltips if needed) -->
+  <!-- Chart.js, PapaParse, Tippy.js (for tooltips) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
   <script src="https://unpkg.com/@popperjs/core@2"></script>
@@ -16,14 +16,14 @@
   <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale.css"/>
 
   <script>
-    // Set Chart.js defaults
+    // Chart.js defaults
     Chart.defaults.font.family = 'Poppins, sans-serif';
     Chart.defaults.font.size = 15;
 
-    // Collapsible group toggles
+    // Toggle group content display on click
     function toggleGroup(el) {
       const content = el.nextElementSibling;
-      if (!content.style.display || content.style.display === "none") {
+      if (content.style.display === "none" || content.style.display === "") {
         content.style.display = "block";
         el.classList.remove("collapsed");
         el.classList.add("expanded");
@@ -34,18 +34,13 @@
       }
     }
 
+    // Collapse groups on load, init tooltips
     document.addEventListener("DOMContentLoaded", function() {
-      // If you want them collapsed by default, add .collapsed class to each group-title
-      // and set content.style.display = "none". Right now, they're expanded by default.
       document.querySelectorAll('.group-title').forEach(el => {
-        if (el.classList.contains('collapsed')) {
-          el.nextElementSibling.style.display = "none";
-        } else {
-          el.nextElementSibling.style.display = "block";
-        }
+        el.classList.add("collapsed");
+        const content = el.nextElementSibling;
+        content.style.display = "none";
       });
-
-      // Initialize Tippy for tooltips
       tippy('[data-tippy-content]', {
         animation: 'scale',
         theme: 'light-border'
@@ -58,33 +53,32 @@
   <header class="container">
     <h1>LCOE Calculator</h1>
     <p class="disclaimer">
-      This is a high-level LCOE model for demonstration. Numbers are approximate.
+      This is a high-level LCOE model for demonstration only. Numbers are approximate.
     </p>
   </header>
 
-  <!-- MAIN WRAPPER (SIDEBAR + CONTENT) -->
+  <!-- MAIN LAYOUT WRAPPER -->
   <div class="container sim-container">
-    <!-- SIDEBAR -->
+    <!-- SIDEBAR with input parameters -->
     <div id="sidebar">
       <h2>Model Parameters</h2>
 
-      <!-- GROUP: System Configuration -->
+      <!-- Group: System Configuration -->
       <div class="group">
-        <!-- Remove 'collapsed' if you want them visible by default -->
         <h3 class="group-title" onclick="toggleGroup(this)">System Configuration</h3>
         <div class="group-content">
           <fieldset>
             <legend>Capacity</legend>
-            <label for="solarCap" data-tippy-content="Solar capacity in GW.">Solar Capacity (GW):</label>
+            <label for="solarCap" data-tippy-content="Solar capacity in GW">Solar Capacity (GW):</label>
             <input type="number" id="solarCap" value="6" step="0.1" />
 
-            <label for="batteryCap" data-tippy-content="Battery capacity in GWh.">Battery Capacity (GWh):</label>
+            <label for="batteryCap" data-tippy-content="Battery capacity in GWh">Battery Capacity (GWh):</label>
             <input type="number" id="batteryCap" value="10" step="1" />
           </fieldset>
         </div>
       </div>
 
-      <!-- GROUP: Assumptions -->
+      <!-- Group: Assumptions -->
       <div class="group">
         <h3 class="group-title" onclick="toggleGroup(this)">Assumptions</h3>
         <div class="group-content">
@@ -144,40 +138,49 @@
       </div>
     </div>
 
-    <!-- CONTENT (CHARTS & RESULTS) -->
+    <!-- CONTENT area with charts & summary in a grid -->
     <div id="content">
-      <div id="chartControls">
-        <label>Outputs:</label>
-        <!-- We just show a label here; or you can add more controls if you like -->
-      </div>
-
       <div id="chartSection">
-        <h3>Annual Generation Mix</h3>
-        <canvas id="annualMixChart"></canvas>
-
-        <h3>Yearly Profile</h3>
-        <canvas id="yearlyProfileChart"></canvas>
-
-        <h3>Selected January Days</h3>
-        <canvas id="janProfileChart"></canvas>
-
-        <h3>Selected July Days</h3>
-        <canvas id="julProfileChart"></canvas>
-
-        <h3>Levelized Cost Breakdown (Stacked)</h3>
-        <canvas id="lcoeBreakdownChart"></canvas>
-
-        <h3>Summary</h3>
-        <div id="summary"></div>
+        <!-- Annual Mix -->
+        <div class="chart-box">
+          <h3>Annual Generation Mix</h3>
+          <canvas id="annualMixChart"></canvas>
+        </div>
+        <!-- Yearly Profile -->
+        <div class="chart-box">
+          <h3>Yearly Profile</h3>
+          <canvas id="yearlyProfileChart"></canvas>
+        </div>
+        <!-- January -->
+        <div class="chart-box">
+          <h3>Selected January Days</h3>
+          <canvas id="janProfileChart"></canvas>
+        </div>
+        <!-- July -->
+        <div class="chart-box">
+          <h3>Selected July Days</h3>
+          <canvas id="julProfileChart"></canvas>
+        </div>
+        <!-- LCOE Breakdown -->
+        <div class="chart-box">
+          <h3>Levelized Cost Breakdown</h3>
+          <canvas id="lcoeBreakdownChart"></canvas>
+        </div>
+        <!-- Summary -->
+        <div class="chart-box">
+          <h3>Summary</h3>
+          <div id="summary"></div>
+        </div>
       </div>
     </div>
   </div>
 
+  <!-- FOOTER -->
   <footer>
     Created by <strong>Daan Walter</strong>, 2025
   </footer>
 
-  <!-- Our LCOE logic script -->
+  <!-- Our corrected LCOE logic (model.js) -->
   <script src="model.js"></script>
 </body>
 </html>
