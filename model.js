@@ -1,43 +1,40 @@
 /***************************************************
  * model.js
  * 
- * - Gas capacity fixed at 1 GW (1000 MW)
- * - Reads all user inputs for CapEx, O&M, WACC, efficiency, etc.
- * - Dispatch model to supply 1 GW baseload, plus battery/solar
- * - Final cost chart: horizontal bars for Capex, Opex, Total
- * - Below the chart: "Total levelized system cost: XX GBP/MWh"
+ * - Gas capacity fixed at 1 GW
+ * - Reads user inputs for cost & O&M
+ * - Dispatch model to supply 1 GW baseload
+ * - Final cost chart: 3 bars => "Capex", "Opex", "Total"
+ *   each stacked by Gas / Solar / Battery
+ * - "Total levelized system cost" text below
  ***************************************************/
 
 let solarProfile = [];
 const HOURS_PER_YEAR = 8760;
 
-// Load CSV on page load
 window.onload = () => {
   Papa.parse("solarprofile.csv", {
     download: true,
     header: true,
     dynamicTyping: true,
-    complete: function(results) {
+    complete: (results) => {
       solarProfile = results.data.map(row => row.electricity || 0);
       console.log("Solar profile loaded. First 24h:", solarProfile.slice(0, 24));
-      // Run model once data is loaded
+      // Run once loaded
       runModel();
     }
   });
 };
 
 function runModel() {
-  // === 1) Grab user inputs ===
-  // Gas capacity is fixed: 1 GW => 1000 MW
-  const gasCapMW = 1000;
+  // === 1) Inputs ===
+  const gasCapMW = 1000; // fixed
 
-  // Solar / battery
   const solarCapGW = parseFloat(document.getElementById("solarCap").value) || 0;
   const batteryCapGWh = parseFloat(document.getElementById("batteryCap").value) || 0;
   const solarCapMW = solarCapGW * 1000;
   const batteryCapMWh = batteryCapGWh * 1000;
 
-  // Costs
   const gasCapex = parseFloat(document.getElementById("gasCapex").value) || 800;
   const solarCapex = parseFloat(document.getElementById("solarCapex").value) || 450;
   const batteryCapex = parseFloat(document.getElementById("batteryCapex").value) || 200;
@@ -50,7 +47,6 @@ function runModel() {
   const gasFuel = parseFloat(document.getElementById("gasFuel").value) || 27;
   const gasEfficiency = (parseFloat(document.getElementById("gasEfficiency").value) || 45) / 100;
 
-  // Other
   const inverterRatio = parseFloat(document.getElementById("inverterRatio").value) || 1.2;
   const waccFossil = (parseFloat(document.getElementById("waccFossil").value) || 7.5) / 100;
   const waccRenew = (parseFloat(document.getElementById("waccRenew").value) || 5) / 100;
@@ -122,14 +118,15 @@ function runModel() {
   const totalCurtailed = sumArray(solarCurtailedFlow);
   const totalSolarGen = sumArray(totalSolarFlow);
 
-  const totalDemandMWh = HOURS_PER_YEAR * 1000; // 1 GW * 8760h
+  const totalDemandMWh = HOURS_PER_YEAR * 1000;
 
   // === 4) Cost & "Levelized System Cost" ===
 
   // Gas cost
-  const gasCapexTotal = gasCapMW * 1000 * gasCapex; 
+  const gasCapexTotal = gasCapMW * 1000 * gasCapex;
   const crfGas = calcCRF(waccFossil, lifetimeFossil);
   const gasAnnualCapex = gasCapexTotal * crfGas;
+
   const gasAnnualFixedOM = gasCapMW * gasFixedOM;
   const gasAnnualVarOM = totalGasMWh * gasVarOM;
   const gasFuelConsumed = (gasEfficiency > 0) ? (totalGasMWh / gasEfficiency) : 0;
@@ -145,26 +142,34 @@ function runModel() {
 
   // Battery cost
   const batteryCapexTotal = batteryCapMWh * 1000 * batteryCapex;
-  const crfBattery = calcCRF(waccRenew, 25); // 25-year assumption
+  const crfBattery = calcCRF(waccRenew, 25);
   const batteryAnnualCapex = batteryCapexTotal * crfBattery;
-  const batteryMW = batteryCapMWh / 4; // simplistic assumption
+  const batteryMW = batteryCapMWh / 4;
   const batteryAnnualFixedOM = batteryMW * batteryFixedOM;
   const batteryAnnualCost = batteryAnnualCapex + batteryAnnualFixedOM;
 
   // Sum total cost
   const totalAnnualCost = gasAnnualCost + solarAnnualCost + batteryAnnualCost;
-  const levelizedSystemCost = totalAnnualCost / totalDemandMWh; // GBP/MWh
+  const levelizedSystemCost = totalAnnualCost / totalDemandMWh;
 
-  // Separate out capex vs. opex
-  const totalCapex = gasAnnualCapex + solarAnnualCapex + batteryAnnualCapex;
-  const totalOpex = (
-    (gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel)
-    + solarAnnualFixedOM
-    + batteryAnnualFixedOM
-  );
-  const systemCapex = totalCapex / totalDemandMWh;
-  const systemOpex = totalOpex / totalDemandMWh;
-  const systemTotal = systemCapex + systemOpex;
+  // Let's separate each technology's capex vs. opex for the final stacked bar:
+  // Gas
+  const gasCapexLcoe = gasAnnualCapex / totalDemandMWh;
+  const gasOpexLcoe  = (gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel) / totalDemandMWh;
+  // Solar
+  const solarCapexLcoe = solarAnnualCapex / totalDemandMWh;
+  const solarOpexLcoe  = solarAnnualFixedOM / totalDemandMWh;
+  // Battery
+  const batteryCapexLcoe = batteryAnnualCapex / totalDemandMWh;
+  const batteryOpexLcoe  = batteryAnnualFixedOM / totalDemandMWh;
+
+  // For the "Total" bar, each technology's total is (capex + opex)
+  const gasTotalLcoe = gasCapexLcoe + gasOpexLcoe;
+  const solarTotalLcoe = solarCapexLcoe + solarOpexLcoe;
+  const batteryTotalLcoe = batteryCapexLcoe + batteryOpexLcoe;
+
+  // The sum across all technologies is the final system cost
+  const systemTotal = gasTotalLcoe + solarTotalLcoe + batteryTotalLcoe;
 
   // === 5) Update Charts ===
   updateGenerationChart({
@@ -178,11 +183,15 @@ function runModel() {
   updateJanChart(totalSolarFlow, batteryFlow, gasFlow);
   updateJulChart(totalSolarFlow, batteryFlow, gasFlow);
 
-  // Final horizontal bar
+  // Final stacked bar with 3 bars: "Capex", "Opex", "Total"
+  // Each bar is splitted by Gas, Solar, Battery
   updateSystemCostChart({
-    capexVal: systemCapex,
-    opexVal: systemOpex,
-    totalVal: systemTotal
+    gasCapex: gasCapexLcoe,
+    gasOpex: gasOpexLcoe,
+    solarCapex: solarCapexLcoe,
+    solarOpex: solarOpexLcoe,
+    batteryCapex: batteryCapexLcoe,
+    batteryOpex: batteryOpexLcoe
   });
 
   // Show text below chart
@@ -397,9 +406,13 @@ function updateJulChart(solarFlow, batteryFlow, gasFlow) {
   });
 }
 
-// 5) Horizontal bar for Capex, Opex, Total
+// 5) Stacked bar for "Capex", "Opex", "Total" splitted by Gas, Solar, Battery
 let systemCostChart;
-function updateSystemCostChart({ capexVal, opexVal, totalVal }) {
+function updateSystemCostChart({
+  gasCapex, gasOpex,
+  solarCapex, solarOpex,
+  batteryCapex, batteryOpex
+}) {
   const ctx = document.getElementById("systemCostChart").getContext("2d");
   if (systemCostChart) systemCostChart.destroy();
 
@@ -407,11 +420,38 @@ function updateSystemCostChart({ capexVal, opexVal, totalVal }) {
     type: "bar",
     data: {
       labels: ["Capex", "Opex", "Total"],
-      datasets: [{
-        label: "GBP/MWh",
-        data: [capexVal, opexVal, totalVal],
-        backgroundColor: ["#66CC99", "#FFCC66", "#9999FF"]
-      }]
+      datasets: [
+        {
+          label: "Gas",
+          data: [
+            gasCapex, 
+            gasOpex,
+            gasCapex + gasOpex
+          ],
+          backgroundColor: "#ff9999",
+          stack: "stack"
+        },
+        {
+          label: "Solar",
+          data: [
+            solarCapex,
+            solarOpex,
+            solarCapex + solarOpex
+          ],
+          backgroundColor: "#ffe699",
+          stack: "stack"
+        },
+        {
+          label: "Battery",
+          data: [
+            batteryCapex,
+            batteryOpex,
+            batteryCapex + batteryOpex
+          ],
+          backgroundColor: "#99ccff",
+          stack: "stack"
+        }
+      ]
     },
     options: {
       indexAxis: "y", // horizontal
@@ -421,7 +461,7 @@ function updateSystemCostChart({ capexVal, opexVal, totalVal }) {
           display: true,
           text: "Levelized System Cost Breakdown"
         },
-        legend: { display: false }
+        legend: { position: "bottom" }
       },
       scales: {
         x: {
@@ -429,11 +469,10 @@ function updateSystemCostChart({ capexVal, opexVal, totalVal }) {
           title: { display: true, text: "GBP/MWh" }
         },
         y: {
+          stacked: true,
           title: { display: false }
         }
       }
     }
   });
 }
-
-
