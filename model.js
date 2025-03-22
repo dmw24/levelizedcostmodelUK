@@ -1,21 +1,17 @@
 /***************************************************
  * model.js
  * 
- * - Uses ALL user inputs from index.html:
- *   Gas CapEx, Solar CapEx, Battery CapEx
- *   Gas/solar/battery fixed O&M
- *   Gas var O&M, fuel, efficiency
- *   Inverter ratio
- *   WACC for gas vs. solar/battery
- *   lifetimes for gas vs. solar
- * - Gas capacity is fixed at 1 GW
- * - Final chart: horizontal bar with 3 bars (Capex, Opex, Total)
- * - Displays "Total levelized system cost: XX GBP/MWh" below chart
+ * - Gas capacity fixed at 1 GW (1000 MW)
+ * - Reads all user inputs for CapEx, O&M, WACC, efficiency, etc.
+ * - Dispatch model to supply 1 GW baseload, plus battery/solar
+ * - Final cost chart: horizontal bars for Capex, Opex, Total
+ * - Below the chart: "Total levelized system cost: XX GBP/MWh"
  ***************************************************/
 
 let solarProfile = [];
 const HOURS_PER_YEAR = 8760;
 
+// Load CSV on page load
 window.onload = () => {
   Papa.parse("solarprofile.csv", {
     download: true,
@@ -23,7 +19,7 @@ window.onload = () => {
     dynamicTyping: true,
     complete: function(results) {
       solarProfile = results.data.map(row => row.electricity || 0);
-      console.log("Solar profile loaded. Sample (first 24h):", solarProfile.slice(0, 24));
+      console.log("Solar profile loaded. First 24h:", solarProfile.slice(0, 24));
       // Run model once data is loaded
       runModel();
     }
@@ -31,12 +27,17 @@ window.onload = () => {
 };
 
 function runModel() {
-  // === 1) Grab all user inputs ===
-  const gasCapMW = 1000; // fixed 1 GW
+  // === 1) Grab user inputs ===
+  // Gas capacity is fixed: 1 GW => 1000 MW
+  const gasCapMW = 1000;
 
+  // Solar / battery
   const solarCapGW = parseFloat(document.getElementById("solarCap").value) || 0;
   const batteryCapGWh = parseFloat(document.getElementById("batteryCap").value) || 0;
+  const solarCapMW = solarCapGW * 1000;
+  const batteryCapMWh = batteryCapGWh * 1000;
 
+  // Costs
   const gasCapex = parseFloat(document.getElementById("gasCapex").value) || 800;
   const solarCapex = parseFloat(document.getElementById("solarCapex").value) || 450;
   const batteryCapex = parseFloat(document.getElementById("batteryCapex").value) || 200;
@@ -49,16 +50,12 @@ function runModel() {
   const gasFuel = parseFloat(document.getElementById("gasFuel").value) || 27;
   const gasEfficiency = (parseFloat(document.getElementById("gasEfficiency").value) || 45) / 100;
 
+  // Other
   const inverterRatio = parseFloat(document.getElementById("inverterRatio").value) || 1.2;
   const waccFossil = (parseFloat(document.getElementById("waccFossil").value) || 7.5) / 100;
   const waccRenew = (parseFloat(document.getElementById("waccRenew").value) || 5) / 100;
-
   const lifetimeFossil = parseFloat(document.getElementById("lifetimeFossil").value) || 25;
   const lifetimeSolar = parseFloat(document.getElementById("lifetimeSolar").value) || 35;
-
-  // Convert capacities
-  const solarCapMW = solarCapGW * 1000;
-  const batteryCapMWh = batteryCapGWh * 1000;
 
   // === 2) Dispatch Model ===
   let batterySoC = 0;
@@ -73,11 +70,10 @@ function runModel() {
   const maxSolarAC = solarCapMW / inverterRatio;
 
   for (let h = 0; h < HOURS_PER_YEAR; h++) {
-    let demand = 1000; // MWh/h => 1 GW
+    let demand = 1000; // 1 GW => 1000 MWh/h
     const rawSolarMW = solarProfile[h] * solarCapMW;
     const clippedSolarMW = Math.min(rawSolarMW, maxSolarAC);
 
-    // For chart
     totalSolarFlow[h] = clippedSolarMW;
 
     // Use solar
@@ -112,7 +108,7 @@ function runModel() {
       }
     }
 
-    // Gas
+    // Gas if load remains
     if (netLoad > 0) {
       gasFlow[h] = netLoad;
       netLoad = 0;
@@ -130,49 +126,47 @@ function runModel() {
 
   // === 4) Cost & "Levelized System Cost" ===
 
-  // Gas
-  // CapEx in GBP/kW => multiply (gasCapMW * 1000)
-  const gasCapexTotal = gasCapMW * 1000 * gasCapex;
+  // Gas cost
+  const gasCapexTotal = gasCapMW * 1000 * gasCapex; 
   const crfGas = calcCRF(waccFossil, lifetimeFossil);
   const gasAnnualCapex = gasCapexTotal * crfGas;
-  const gasAnnualFixedOM = gasCapMW * gasFixedOM; // GBP/yr
+  const gasAnnualFixedOM = gasCapMW * gasFixedOM;
   const gasAnnualVarOM = totalGasMWh * gasVarOM;
-  let gasFuelConsumed = (gasEfficiency > 0) ? (totalGasMWh / gasEfficiency) : 0;
+  const gasFuelConsumed = (gasEfficiency > 0) ? (totalGasMWh / gasEfficiency) : 0;
   const gasAnnualFuel = gasFuelConsumed * gasFuel;
   const gasAnnualCost = gasAnnualCapex + gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel;
 
-  // Solar
-  // CapEx in GBP/kW => multiply (solarCapMW * 1000)
+  // Solar cost
   const solarCapexTotal = solarCapMW * 1000 * solarCapex;
   const crfSolar = calcCRF(waccRenew, lifetimeSolar);
   const solarAnnualCapex = solarCapexTotal * crfSolar;
   const solarAnnualFixedOM = solarCapMW * solarFixedOM;
   const solarAnnualCost = solarAnnualCapex + solarAnnualFixedOM;
 
-  // Battery
-  // CapEx in GBP/kWh => multiply (batteryCapMWh * 1000)
+  // Battery cost
   const batteryCapexTotal = batteryCapMWh * 1000 * batteryCapex;
-  const crfBattery = calcCRF(waccRenew, 25); // battery lifetime = 25
+  const crfBattery = calcCRF(waccRenew, 25); // 25-year assumption
   const batteryAnnualCapex = batteryCapexTotal * crfBattery;
-  // Approx battery power rating => batteryMW = batteryCapMWh / 4
-  const batteryMW = batteryCapMWh / 4;
+  const batteryMW = batteryCapMWh / 4; // simplistic assumption
   const batteryAnnualFixedOM = batteryMW * batteryFixedOM;
   const batteryAnnualCost = batteryAnnualCapex + batteryAnnualFixedOM;
 
-  // Sum total annual cost
+  // Sum total cost
   const totalAnnualCost = gasAnnualCost + solarAnnualCost + batteryAnnualCost;
   const levelizedSystemCost = totalAnnualCost / totalDemandMWh; // GBP/MWh
 
-  // We'll also separate capex vs. opex
+  // Separate out capex vs. opex
   const totalCapex = gasAnnualCapex + solarAnnualCapex + batteryAnnualCapex;
-  const totalOpex = (gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel) + solarAnnualFixedOM + batteryAnnualFixedOM;
+  const totalOpex = (
+    (gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel)
+    + solarAnnualFixedOM
+    + batteryAnnualFixedOM
+  );
   const systemCapex = totalCapex / totalDemandMWh;
   const systemOpex = totalOpex / totalDemandMWh;
-  const systemTotal = systemCapex + systemOpex; // ~ levelizedSystemCost
+  const systemTotal = systemCapex + systemOpex;
 
   // === 5) Update Charts ===
-
-  // a) Generation bar
   updateGenerationChart({
     gasMWh: totalGasMWh,
     solarUsedMWh: totalSolarUsed,
@@ -180,23 +174,18 @@ function runModel() {
     curtailedMWh: totalCurtailed
   });
 
-  // b) Yearly
   updateYearlyProfileChart(totalSolarFlow, batteryFlow, gasFlow);
-
-  // c) January
   updateJanChart(totalSolarFlow, batteryFlow, gasFlow);
-
-  // d) July
   updateJulChart(totalSolarFlow, batteryFlow, gasFlow);
 
-  // e) Horizontal bar for "Capex", "Opex", "Total"
+  // Final horizontal bar
   updateSystemCostChart({
     capexVal: systemCapex,
     opexVal: systemOpex,
     totalVal: systemTotal
   });
 
-  // Show a text line below chart
+  // Show text below chart
   const resultDiv = document.getElementById("levelizedCostResult");
   resultDiv.innerHTML = `Total levelized system cost: ${systemTotal.toFixed(2)} GBP/MWh`;
 }
@@ -446,4 +435,5 @@ function updateSystemCostChart({ capexVal, opexVal, totalVal }) {
     }
   });
 }
+
 
