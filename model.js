@@ -4,8 +4,8 @@
  * - Gas capacity fixed at 1 GW
  * - Clamps user inputs to min(0.0001)
  * - Dispatch model to supply 1 GW baseload
- * - Final cost chart: 3 bars => "Capex", "Opex", "Total" each stacked by Gas/Solar/Battery
- * - Detailed summary for each tech: discount rate, lifetime, CRF, total capex, annual OPEX
+ * - Final cost chart: 3 bars => "Capex", "Opex", "Total"
+ *   each stacked by Gas / Solar / Battery
  * - "Total levelized system cost" text below
  ***************************************************/
 
@@ -48,7 +48,8 @@ function runModel() {
   const gasEfficiencyPct = clamp(parseFloat(document.getElementById("gasEfficiency").value) || 0);
   const gasEfficiency = gasEfficiencyPct / 100;
 
-  const inverterRatio = clamp(parseFloat(document.getElementById("inverterRatio").value) || 0);
+  const inverterRatioInput = parseFloat(document.getElementById("inverterRatio").value) || 0;
+  const inverterRatio = Math.max(inverterRatioInput, 0.0001);
 
   const waccFossilPct = clamp(parseFloat(document.getElementById("waccFossil").value) || 0);
   const waccFossil = waccFossilPct / 100;
@@ -139,7 +140,6 @@ function runModel() {
 
   const gasAnnualFixedOM = gasCapMW * gasFixedOM;
   const gasAnnualVarOM = totalGasMWh * gasVarOM;
-  // If gasEfficiency is extremely small, it means a huge fuel usage, but we clamp at 0.0001 above
   const gasFuelConsumed = totalGasMWh / gasEfficiency; 
   const gasAnnualFuel = gasFuelConsumed * gasFuel;
   const gasAnnualCost = gasAnnualCapex + gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel;
@@ -173,10 +173,12 @@ function runModel() {
   const batteryCapexLcoe = batteryAnnualCapex / totalDemandMWh;
   const batteryOpexLcoe  = batteryAnnualFixedOM / totalDemandMWh;
 
-  // Totals
+  // For the "Total" bar, each technology's total is (capex + opex)
   const gasTotalLcoe = gasCapexLcoe + gasOpexLcoe;
   const solarTotalLcoe = solarCapexLcoe + solarOpexLcoe;
   const batteryTotalLcoe = batteryCapexLcoe + batteryOpexLcoe;
+
+  // The sum across all technologies is the final system cost
   const systemTotal = gasTotalLcoe + solarTotalLcoe + batteryTotalLcoe;
 
   // === 5) Update Charts ===
@@ -203,31 +205,10 @@ function runModel() {
 
   // Show text below chart
   const resultDiv = document.getElementById("levelizedCostResult");
-  resultDiv.innerHTML = `
-    <p>Total levelized system cost: ${systemTotal.toFixed(2)} GBP/MWh</p>
-    <hr/>
-    <p><strong>Gas:</strong></p>
-    <ul>
-      <li>Discount rate: ${(waccFossil*100).toFixed(2)}% | Lifetime: ${lifetimeFossil} yrs | CRF: ${crfGas.toFixed(4)}</li>
-      <li>Total Capex: ${Math.round(gasCapexTotal).toLocaleString()} GBP</li>
-      <li>Annual Opex: ${(gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel).toLocaleString()} GBP/yr</li>
-    </ul>
-    <p><strong>Solar:</strong></p>
-    <ul>
-      <li>Discount rate: ${(waccRenew*100).toFixed(2)}% | Lifetime: ${lifetimeSolar} yrs | CRF: ${crfSolar.toFixed(4)}</li>
-      <li>Total Capex: ${Math.round(solarCapexTotal).toLocaleString()} GBP</li>
-      <li>Annual Opex: ${Math.round(solarAnnualFixedOM).toLocaleString()} GBP/yr</li>
-    </ul>
-    <p><strong>Battery:</strong></p>
-    <ul>
-      <li>Discount rate: ${(waccRenew*100).toFixed(2)}% | Lifetime: 25 yrs | CRF: ${crfBattery.toFixed(4)}</li>
-      <li>Total Capex: ${Math.round(batteryCapexTotal).toLocaleString()} GBP</li>
-      <li>Annual Opex: ${Math.round(batteryAnnualFixedOM).toLocaleString()} GBP/yr</li>
-    </ul>
-  `;
+  resultDiv.innerHTML = `Total levelized system cost: ${systemTotal.toFixed(2)} GBP/MWh`;
 }
 
-/** Helper to clamp user inputs to 0.0001 if 0 or negative */
+/** clamp() => ensures no input is below 0.0001 */
 function clamp(val) {
   return Math.max(val, 0.0001);
 }
@@ -509,11 +490,4 @@ function updateSystemCostChart({
       }
     }
   });
-}
-
-/** 
- * clamp() => ensures no input is below 0.0001 
- */
-function clamp(val) {
-  return Math.max(val, 0.0001);
 }
