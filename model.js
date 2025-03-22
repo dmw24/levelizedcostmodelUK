@@ -1,13 +1,12 @@
 /***************************************************
  * model.js
- * 1) LCOE math corrected for gas:
- *    - We treat gasFuel as GBP per MWh_fuel
- *    - Incorporate efficiency => MWh_f = MWh_e / efficiency
- *    - Summation: capex + fixed O&M + var O&M + fuel
- * 2) Hourly charts show only ONE "Solar" flow (clipped total),
- *    ignoring whether it was used, charged a battery, or curtailed.
- * 3) We add a new "Generation" horizontal bar chart with 4 bars:
- *    Gas, Used Solar, Battery, Curtailed Solar.
+ * 1) LCOE math for gas: 
+ *    - Fuel cost in GBP/MWh_f
+ *    - Efficiency
+ *    - Fixed + var O&M
+ * 2) Hourly charts: single "Solar" flow
+ * 3) "Generation" chart (horizontal) with 4 bars
+ * 4) Single "System LCOE" bar at the bottom
  ***************************************************/
 
 // We'll store the solar profile (8760 hours) in this array
@@ -30,9 +29,6 @@ window.onload = () => {
   });
 };
 
-/**
- * Main LCOE function
- */
 function runModel() {
   // 1) Read user inputs
   const solarCapGW = parseFloat(document.getElementById("solarCap").value) || 0;
@@ -66,17 +62,16 @@ function runModel() {
   //  - solarUsedFlow[h]: solar used directly for load
   //  - batteryFlow[h]: positive = discharge, negative = charge
   //  - gasFlow[h]
-  //  - solarCurtailedFlow[h]
-  // But for the HOURLY CHARTS, we just want "totalSolarFlow[h]" = clippedSolarMW
-  // so there's no distinction in the final stacked bar.
+  //  - solarCurtailedFlow[h] (for generation chart)
+  // For the HOURLY CHART, we only show total "Solar" each hour (clippedSolarMW).
 
-  let batterySoC = 0; // MWh stored
+  let batterySoC = 0;
   const solarUsedFlow = new Array(HOURS_PER_YEAR).fill(0);
   const batteryFlow = new Array(HOURS_PER_YEAR).fill(0);
   const gasFlow = new Array(HOURS_PER_YEAR).fill(0);
   const solarCurtailedFlow = new Array(HOURS_PER_YEAR).fill(0);
 
-  // We'll store a separate "totalSolarFlow[h]" for charting (the entire clipped solar)
+  // For the hourly chart
   const totalSolarFlow = new Array(HOURS_PER_YEAR).fill(0);
 
   // Max AC from solar after inverter ratio
@@ -88,7 +83,7 @@ function runModel() {
     const rawSolarMW = solarProfile[h] * solarCapMW;
     const clippedSolarMW = Math.min(rawSolarMW, maxSolarAC);
 
-    // For the hourly chart, we want total solar (used + battery + curtailed) as one flow
+    // For the chart, store total solar
     totalSolarFlow[h] = clippedSolarMW;
 
     // 1) Use solar to meet load directly
@@ -108,7 +103,7 @@ function runModel() {
       }
     }
 
-    // 3) any solar left after battery is curtailment
+    // 3) any leftover is curtailed
     const leftoverAfterCharge = leftoverSolar - batteryCharge;
     if (leftoverAfterCharge > 0) {
       solarCurtailedFlow[h] = leftoverAfterCharge;
@@ -133,52 +128,37 @@ function runModel() {
   }
 
   // 3) Summaries
-  // For LCOE denominators:
-  // - "solarUsedFlow" is the portion that directly met load
-  // - "batteryFlow" (positive) is discharge MWh for battery
-  // - "gasFlow" for gas
-  // - "solarCurtailedFlow" is leftover
-  // The total demand is 8760 * 1000 = 8,760,000 MWh
-
   const totalSolarUsed = sumArray(solarUsedFlow);
   const totalBatteryDischarge = sumArray(batteryFlow.map(x => (x > 0 ? x : 0)));
   const totalGasMWh = sumArray(gasFlow);
   const totalCurtailed = sumArray(solarCurtailedFlow);
-
-  // For the charts, we have totalSolarFlow (hourly) => sum that up if needed
-  const totalSolarGen = sumArray(totalSolarFlow);
-
-  const totalDemandMWh = HOURS_PER_YEAR * 1000; // 8,760,000 MWh
+  const totalSolarGen = sumArray(totalSolarFlow); // for reference
+  const totalDemandMWh = HOURS_PER_YEAR * 1000;   // 8,760,000 MWh
 
   // 4) LCOE Calculations
   // a) Gas
-  // capacity = 1 GW => 1000 MW, gasCapex in GBP/kW => multiply by 1000
   const gasCapMW = 1000;
-  const gasCapexTotal = gasCapMW * 1000 * gasCapex; // e.g. 1000 MW * 1000 kW/MW * 800 GBP/kW
+  const gasCapexTotal = gasCapMW * 1000 * gasCapex;
   const crfGas = calcCRF(waccFossil, lifetimeFossil);
   const gasAnnualCapex = gasCapexTotal * crfGas; // GBP/yr
 
-  // Fixed O&M (annual)
-  const gasAnnualFixedOM = gasCapMW * gasFixedOM; // e.g. 1000 MW * 18000 GBP/MW/yr => 18e6 GBP/yr
-
-  // Variable O&M => net MWh output
-  const gasAnnualVarOM = totalGasMWh * gasVarOM; // e.g. 4 GBP/MWh * totalGasMWh
-
-  // Fuel cost => if gasFuel is in GBP/MWh_f, then MWh_f = totalGasMWh / efficiency
-  let gasFuelConsumed = 0;
-  if (gasEfficiency > 0) {
-    gasFuelConsumed = totalGasMWh / gasEfficiency;
-  }
-  const gasAnnualFuel = gasFuelConsumed * gasFuel; // e.g. 40 GBP/MWh_f * MWh_f
+  // Fixed O&M
+  const gasAnnualFixedOM = gasCapMW * gasFixedOM; 
+  // Var O&M => totalGasMWh * gasVarOM
+  const gasAnnualVarOM = totalGasMWh * gasVarOM;
+  // Fuel => if gasFuel is in GBP/MWh_f
+  const gasFuelConsumed = (gasEfficiency > 0) ? (totalGasMWh / gasEfficiency) : 0;
+  const gasAnnualFuel = gasFuelConsumed * gasFuel;
 
   const gasAnnualCost = gasAnnualCapex + gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel;
+  // Gas LCOE
   let gasLcoe = 0;
   if (totalGasMWh > 0) {
-    gasLcoe = gasAnnualCost / totalGasMWh; // GBP/MWh
+    gasLcoe = gasAnnualCost / totalGasMWh;
   }
 
-  // b) Solar => only the portion used for load
-  const solarCapexTotal = solarCapMW * 1000 * solarCapex; // MW -> kW
+  // b) Solar => only solarUsedFlow in denominator
+  const solarCapexTotal = solarCapMW * 1000 * solarCapex;
   const crfSolar = calcCRF(waccRenew, lifetimeSolar);
   const solarAnnualCapex = solarCapexTotal * crfSolar;
   const solarAnnualFixedOM = solarCapMW * solarFixedOM;
@@ -188,11 +168,10 @@ function runModel() {
     solarLcoe = solarAnnualCost / totalSolarUsed;
   }
 
-  // c) Battery => only battery discharge MWh
+  // c) Battery => only battery discharge
   const batteryCapexTotal = batteryCapMWh * 1000 * batteryCapex;
   const crfBattery = calcCRF(waccRenew, 25);
   const batteryAnnualCapex = batteryCapexTotal * crfBattery;
-  // Approx battery MW => MWh / 4
   const batteryMW = batteryCapMWh / 4;
   const batteryAnnualFixedOM = batteryMW * batteryFixedOM;
   const batteryAnnualCost = batteryAnnualCapex + batteryAnnualFixedOM;
@@ -201,17 +180,13 @@ function runModel() {
     batteryLcoe = batteryAnnualCost / totalBatteryDischarge;
   }
 
-  // d) System LCOE => sum of annual costs / total load MWh
+  // System LCOE => total cost / total load
   const totalAnnualCost = gasAnnualCost + solarAnnualCost + batteryAnnualCost;
   const systemLcoe = totalAnnualCost / totalDemandMWh; // GBP/MWh
 
   // 5) Update CHARTS
 
-  // a) "Generation" horizontal bar chart with 4 bars:
-  //    1) Gas
-  //    2) Used Solar
-  //    3) Battery
-  //    4) Curtailed Solar
+  // a) Generation chart (horizontal)
   updateGenerationChart({
     gasMWh: totalGasMWh,
     solarUsedMWh: totalSolarUsed,
@@ -219,55 +194,40 @@ function runModel() {
     curtailedMWh: totalCurtailed
   });
 
-  // b) Yearly (hourly) profile => stacked bar with:
-  //    - Solar (the entire clipped solar each hour)
-  //    - Battery (+/-)
-  //    - Gas
-  // We do NOT show curtailed separately, as requested
+  // b) Yearly profile => stacked bar with Solar, Battery, Gas
   updateYearlyProfileChart(totalSolarFlow, batteryFlow, gasFlow);
 
-  // c) January (7 days)
+  // c) January => stacked bar with Solar, Battery, Gas
   updateJanChart(totalSolarFlow, batteryFlow, gasFlow);
 
-  // d) July (7 days mid-year)
+  // d) July => stacked bar with Solar, Battery, Gas
   updateJulChart(totalSolarFlow, batteryFlow, gasFlow);
 
-  // e) LCOE breakdown chart => stacked bar (capex vs. opex) for Gas, Solar, Battery
-  updateLcoeBreakdownChart({
-    gasCapex: (gasAnnualCapex / (totalGasMWh || 1)),
-    gasOpex: ((gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel) / (totalGasMWh || 1)),
-    solarCapex: (solarAnnualCapex / (totalSolarUsed || 1)),
-    solarOpex: (solarAnnualFixedOM / (totalSolarUsed || 1)),
-    batteryCapex: (batteryAnnualCapex / (totalBatteryDischarge || 1)),
-    batteryOpex: (batteryAnnualFixedOM / (totalBatteryDischarge || 1))
-  });
+  // e) Single bar for "System LCOE" => 6 segments: 
+  //    Gas Capex, Gas Opex, Solar Capex, Solar Opex, Battery Capex, Battery Opex
+  const gasCapexSystem = gasAnnualCapex / totalDemandMWh;
+  const gasOpexSystem  = (gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel) / totalDemandMWh;
+  const solarCapexSystem = solarAnnualCapex / totalDemandMWh;
+  const solarOpexSystem  = solarAnnualFixedOM / totalDemandMWh;
+  const batteryCapexSystem = batteryAnnualCapex / totalDemandMWh;
+  const batteryOpexSystem  = batteryAnnualFixedOM / totalDemandMWh;
 
-  // 6) Summary
-  const summaryDiv = document.getElementById("summary");
-  summaryDiv.innerHTML = `
-    <p><strong>Total Demand:</strong> ${totalDemandMWh.toLocaleString()} MWh</p>
-    <p><strong>Solar Used (direct):</strong> ${Math.round(totalSolarUsed).toLocaleString()} MWh</p>
-    <p><strong>Battery Discharge:</strong> ${Math.round(totalBatteryDischarge).toLocaleString()} MWh</p>
-    <p><strong>Gas Generation:</strong> ${Math.round(totalGasMWh).toLocaleString()} MWh</p>
-    <p><strong>Solar Curtailed:</strong> ${Math.round(totalCurtailed).toLocaleString()} MWh</p>
-    <p><strong>Total Solar (Hourly Chart):</strong> ${Math.round(totalSolarGen).toLocaleString()} MWh</p>
-    <p><strong>System LCOE:</strong> ${systemLcoe.toFixed(2)} GBP/MWh</p>
-    <p>
-      <em>
-        Gas LCOE: ${gasLcoe.toFixed(2)}, 
-        Solar LCOE: ${solarLcoe.toFixed(2)}, 
-        Battery LCOE: ${batteryLcoe.toFixed(2)}
-      </em>
-    </p>
-  `;
+  updateSystemLcoeChart({
+    gasCapexSystem,
+    gasOpexSystem,
+    solarCapexSystem,
+    solarOpexSystem,
+    batteryCapexSystem,
+    batteryOpexSystem
+  });
 }
 
-/** Array sum helper */
+/** Summation helper */
 function sumArray(arr) {
   return arr.reduce((a, b) => a + b, 0);
 }
 
-/** Capital Recovery Factor => converts lump-sum capex to annual payment */
+/** CRF => capital recovery factor */
 function calcCRF(rate, years) {
   if (rate === 0) return 1 / years;
   const top = rate * Math.pow(1 + rate, years);
@@ -275,9 +235,9 @@ function calcCRF(rate, years) {
   return top / bot;
 }
 
-/** ========== Charting ========== */
+/** ========== Charts ========== */
 
-// 1) "Generation" horizontal bar chart => 4 bars: Gas, Used Solar, Battery, Curtailed
+// 1) Generation chart => horizontal bar: Gas, Used Solar, Battery, Curtailed
 let generationChart;
 function updateGenerationChart({ gasMWh, solarUsedMWh, batteryMWh, curtailedMWh }) {
   const ctx = document.getElementById("annualMixChart").getContext("2d");
@@ -294,7 +254,7 @@ function updateGenerationChart({ gasMWh, solarUsedMWh, batteryMWh, curtailedMWh 
       }]
     },
     options: {
-      indexAxis: "y", // horizontal bar
+      indexAxis: "y",
       responsive: true,
       scales: {
         x: {
@@ -315,8 +275,7 @@ function updateGenerationChart({ gasMWh, solarUsedMWh, batteryMWh, curtailedMWh 
   });
 }
 
-// 2) Yearly Profile => stacked bar with 3 flows: Solar, Battery, Gas
-//    (No separate "curtailed" in the stacked chart)
+// 2) Yearly Profile => stacked bar with Solar, Battery, Gas
 let yearlyProfileChart;
 function updateYearlyProfileChart(solarFlow, batteryFlow, gasFlow) {
   const ctx = document.getElementById("yearlyProfileChart").getContext("2d");
@@ -349,7 +308,7 @@ function updateYearlyProfileChart(solarFlow, batteryFlow, gasFlow) {
     },
     options: {
       responsive: true,
-      animation: false, // might help performance with 8760 bars
+      animation: false, 
       scales: {
         x: { 
           stacked: true,
@@ -364,7 +323,7 @@ function updateYearlyProfileChart(solarFlow, batteryFlow, gasFlow) {
   });
 }
 
-// 3) January => bar chart for first 7 days => 168 hours
+// 3) January => stacked bar with Solar, Battery, Gas
 let janProfileChart;
 function updateJanChart(solarFlow, batteryFlow, gasFlow) {
   const ctx = document.getElementById("janProfileChart").getContext("2d");
@@ -415,7 +374,7 @@ function updateJanChart(solarFlow, batteryFlow, gasFlow) {
   });
 }
 
-// 4) July => bar chart for ~mid-year => pick 7 days from end of June
+// 4) July => stacked bar with Solar, Battery, Gas
 let julProfileChart;
 function updateJulChart(solarFlow, batteryFlow, gasFlow) {
   const ctx = document.getElementById("julProfileChart").getContext("2d");
@@ -466,44 +425,76 @@ function updateJulChart(solarFlow, batteryFlow, gasFlow) {
   });
 }
 
-// 5) LCOE Breakdown => stacked bar for Capex vs. Opex
-let lcoeBreakdownChart;
-function updateLcoeBreakdownChart(vals) {
-  const {
-    gasCapex, gasOpex,
-    solarCapex, solarOpex,
-    batteryCapex, batteryOpex
-  } = vals;
+// 5) System LCOE Breakdown => single bar with 6 stacked segments
+let systemLcoeChart;
+function updateSystemLcoeChart({
+  gasCapexSystem,
+  gasOpexSystem,
+  solarCapexSystem,
+  solarOpexSystem,
+  batteryCapexSystem,
+  batteryOpexSystem
+}) {
+  const ctx = document.getElementById("systemLcoeChart").getContext("2d");
+  if (systemLcoeChart) systemLcoeChart.destroy();
 
-  const ctx = document.getElementById("lcoeBreakdownChart").getContext("2d");
-  if (lcoeBreakdownChart) lcoeBreakdownChart.destroy();
-
-  lcoeBreakdownChart = new Chart(ctx, {
+  systemLcoeChart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels: ["Gas", "Solar", "Battery"],
+      labels: ["System LCOE"],
       datasets: [
         {
-          label: "Capex (GBP/MWh)",
-          data: [gasCapex, solarCapex, batteryCapex],
-          backgroundColor: "#5555ff"
+          label: "Gas Capex",
+          data: [gasCapexSystem],
+          backgroundColor: "#f45d5d"
         },
         {
-          label: "Opex (GBP/MWh)",
-          data: [gasOpex, solarOpex, batteryOpex],
-          backgroundColor: "#aaaaaa"
+          label: "Gas Opex",
+          data: [gasOpexSystem],
+          backgroundColor: "#f45d5d88"
+        },
+        {
+          label: "Solar Capex",
+          data: [solarCapexSystem],
+          backgroundColor: "#f4d44d"
+        },
+        {
+          label: "Solar Opex",
+          data: [solarOpexSystem],
+          backgroundColor: "#f4d44d88"
+        },
+        {
+          label: "Battery Capex",
+          data: [batteryCapexSystem],
+          backgroundColor: "#4db6e4"
+        },
+        {
+          label: "Battery Opex",
+          data: [batteryOpexSystem],
+          backgroundColor: "#4db6e488"
         }
       ]
     },
     options: {
       responsive: true,
+      indexAxis: "y", // single horizontal bar
       scales: {
-        x: { stacked: true },
+        x: {
+          stacked: true,
+          title: { display: true, text: "GBP/MWh" },
+          beginAtZero: true
+        },
         y: {
           stacked: true,
-          beginAtZero: true,
-          title: { display: true, text: "GBP/MWh" }
+          title: { display: false, text: "System LCOE" }
         }
+      },
+      plugins: {
+        title: {
+          display: true,
+          text: "System LCOE Breakdown (GBP/MWh)"
+        },
+        legend: { position: "bottom" }
       }
     }
   });
