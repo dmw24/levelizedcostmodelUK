@@ -1,0 +1,61 @@
+/* Simple styling for layout */
+
+body {
+  margin: 20px;
+  font-family: Arial, sans-serif;
+}
+
+h1 {
+  margin-bottom: 10px;
+}
+
+#inputs, #results {
+  margin-bottom: 40px;
+}
+
+.input-group {
+  display: flex;
+  align-items: center;
+  margin: 5px 0;
+}
+
+.input-group label {
+  width: 250px;
+  font-weight: bold;
+  margin-right: 10px;
+}
+
+.input-group input {
+  width: 100px;
+  padding: 5px;
+}
+
+button {
+  margin-top: 20px;
+  padding: 8px 16px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.chart-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+  margin-bottom: 40px;
+}
+
+.chart-row > div {
+  flex: 1 1 400px;
+  min-width: 300px;
+}
+
+canvas {
+  max-width: 100%;
+  height: 300px !important;
+}
+
+#summary {
+  padding: 10px;
+  border: 1px solid #ccc;
+  min-height: 200px;
+}
