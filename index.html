@@ -108,7 +108,7 @@
             <label for="gasVarOM">Gas Variable O&amp;M (GBP/MWh):</label>
             <input type="number" id="gasVarOM" value="4" step="1" />
 
-            <label for="gasFuel">Gas Fuel (GBP/MWh):</label>
+            <label for="gasFuel">Gas Fuel (GBP/MWh fuel):</label>
             <input type="number" id="gasFuel" value="40" step="1" />
           </fieldset>
 
@@ -132,18 +132,19 @@
             <label for="lifetimeSolar">Lifetime (solar) (years):</label>
             <input type="number" id="lifetimeSolar" value="35" step="1" />
           </fieldset>
-
-          <button type="button" onclick="runModel()">Run Model</button>
         </div>
       </div>
+
+      <!-- RUN MODEL BUTTON at bottom of sidebar -->
+      <button type="button" onclick="runModel()" class="run-model-btn">Run Model</button>
     </div>
 
-    <!-- CONTENT area with charts & summary in a grid -->
+    <!-- CONTENT area with charts in a grid -->
     <div id="content">
       <div id="chartSection">
-        <!-- Annual Mix -->
+        <!-- Generation chart (horizontal) -->
         <div class="chart-box">
-          <h3>Annual Generation Mix</h3>
+          <h3>Annual Generation</h3>
           <canvas id="annualMixChart"></canvas>
         </div>
 
@@ -165,16 +166,10 @@
           <canvas id="julProfileChart"></canvas>
         </div>
 
-        <!-- LCOE Breakdown -->
+        <!-- System LCOE breakdown chart at the bottom -->
         <div class="chart-box">
-          <h3>Levelized Cost Breakdown</h3>
-          <canvas id="lcoeBreakdownChart"></canvas>
-        </div>
-
-        <!-- Summary -->
-        <div class="chart-box">
-          <h3>Summary</h3>
-          <div id="summary"></div>
+          <h3>System LCOE Breakdown</h3>
+          <canvas id="systemLcoeChart"></canvas>
         </div>
       </div>
     </div>
@@ -185,7 +180,7 @@
     Created by <strong>Daan Walter</strong>, 2025
   </footer>
 
-  <!-- Our revised LCOE logic (model.js) -->
+  <!-- Our updated LCOE logic (model.js) -->
   <script src="model.js"></script>
 </body>
 </html>
