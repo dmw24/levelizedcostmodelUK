@@ -127,13 +127,13 @@ function runModel() {
   const solarAnnualFixedOM = solarCapMW * solarFixedOM;
   const solarAnnualCost = solarAnnualCapex + solarAnnualFixedOM;
   const solarLcoe = (totalSolarMWh > 0)
-    ? solarAnnualCost / (totalSolarMWh / HOURS_PER_YEAR)
+    ? solarAnnualCost / (totalSolarMWh )
     : 0;
   const solarCapexLcoe = (totalSolarMWh > 0)
-    ? solarAnnualCapex / (totalSolarMWh / HOURS_PER_YEAR)
+    ? solarAnnualCapex / (totalSolarMWh )
     : 0;
   const solarOpexLcoe = (totalSolarMWh > 0)
-    ? solarAnnualFixedOM / (totalSolarMWh / HOURS_PER_YEAR)
+    ? solarAnnualFixedOM / (totalSolarMWh )
     : 0;
 
   // c) Battery => capacity in MWh, cost in GBP/kWh => multiply by 1000
@@ -146,18 +146,18 @@ function runModel() {
   const batteryAnnualFixedOM = batteryMW * batteryFixedOM;
   const batteryAnnualCost = batteryAnnualCapex + batteryAnnualFixedOM;
   const batteryLcoe = (totalBatteryDischargeMWh > 0)
-    ? batteryAnnualCost / (totalBatteryDischargeMWh / HOURS_PER_YEAR)
+    ? batteryAnnualCost / (totalBatteryDischargeMWh )
     : 0;
   const batteryCapexLcoe = (totalBatteryDischargeMWh > 0)
-    ? batteryAnnualCapex / (totalBatteryDischargeMWh / HOURS_PER_YEAR)
+    ? batteryAnnualCapex / (totalBatteryDischargeMWh )
     : 0;
   const batteryOpexLcoe = (totalBatteryDischargeMWh > 0)
-    ? batteryAnnualFixedOM / (totalBatteryDischargeMWh / HOURS_PER_YEAR)
+    ? batteryAnnualFixedOM / (totalBatteryDischargeMWh )
     : 0;
 
   // d) System LCOE => sum annual costs / total load
   const totalAnnualCost = gasAnnualCost + solarAnnualCost + batteryAnnualCost;
-  const systemLcoe = totalAnnualCost / ( (totalDemandMWh / HOURS_PER_YEAR) );
+  const systemLcoe = totalAnnualCost / ( (totalDemandMWh ) );
 
   // 5) Update Charts
   updateAnnualMixChart(totalSolarMWh, totalBatteryDischargeMWh, totalGasMWh);
