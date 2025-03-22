@@ -1,16 +1,11 @@
 /***************************************************
- * model.js
- * Revised so only solar directly used for load
- * is counted as "solar generation."
+ * model.js (using Plotly for interactive charts)
  ***************************************************/
 
-let solarProfile = [];       // 8760-hour array of [0..1] multipliers
+// Global solar profile (8760 hours)
+let solarProfile = [];
 const HOURS_PER_YEAR = 8760;
 
-/**
- * On page load, parse the CSV with PapaParse,
- * then auto-run the model once loaded.
- */
 window.onload = () => {
   Papa.parse("solarprofile.csv", {
     download: true,
@@ -18,18 +13,17 @@ window.onload = () => {
     dynamicTyping: true,
     complete: (results) => {
       solarProfile = results.data.map(row => row.electricity || 0);
-      console.log("Solar profile loaded:", solarProfile.slice(0, 24));
-      // Run the model with default UI inputs
+      console.log("Solar profile loaded. Sample:", solarProfile.slice(0, 24));
       runModel();
     }
   });
 };
 
 /**
- * Main LCOE function triggered by "Run Model" button
+ * Main function triggered by "Run Model" button in your HTML
  */
 function runModel() {
-  // === 1) Read user inputs ===
+  // 1) Gather user inputs
   const solarCapGW = parseFloat(document.getElementById("solarCap").value) || 0;
   const batteryCapGWh = parseFloat(document.getElementById("batteryCap").value) || 0;
 
@@ -42,169 +36,161 @@ function runModel() {
   const batteryFixedOM = parseFloat(document.getElementById("batteryFixedOM").value) || 6000;
 
   const gasVarOM = parseFloat(document.getElementById("gasVarOM").value) || 4;
-  const gasFuel = parseFloat(document.getElementById("gasFuel").value) || 40;
+  const gasFuel  = parseFloat(document.getElementById("gasFuel").value) || 40;
   const gasEfficiency = (parseFloat(document.getElementById("gasEfficiency").value) || 45) / 100;
 
   const inverterRatio = parseFloat(document.getElementById("inverterRatio").value) || 1.2;
   const waccFossil = (parseFloat(document.getElementById("waccFossil").value) || 8) / 100;
-  const waccRenew = (parseFloat(document.getElementById("waccRenew").value) || 5) / 100;
+  const waccRenew  = (parseFloat(document.getElementById("waccRenew").value) || 5) / 100;
 
   const lifetimeFossil = parseFloat(document.getElementById("lifetimeFossil").value) || 25;
-  const lifetimeSolar = parseFloat(document.getElementById("lifetimeSolar").value) || 35;
+  const lifetimeSolar  = parseFloat(document.getElementById("lifetimeSolar").value) || 35;
 
-  // === Unit conversions ===
-  // 1 GW = 1000 MW; 1 MW = 1000 kW
-  // 1 GWh = 1000 MWh; 1 MWh = 1000 kWh
-  const solarCapMW = solarCapGW * 1000;          // from GW to MW
-  const batteryCapMWh = batteryCapGWh * 1000;    // from GWh to MWh
+  // 2) Unit conversions
+  const solarCapMW    = solarCapGW * 1000;        // GW->MW
+  const batteryCapMWh = batteryCapGWh * 1000;     // GWh->MWh
 
-  // === 2) Dispatch model with refined logic ===
-  // We want to track:
-  //  - solarUsed[h]: portion of solar directly used for load
-  //  - batteryOut[h]: battery discharge that meets load
-  //  - gasUsed[h]: gas that meets load
-  //  - batteryIn[h]: solar used to charge battery (negative in chart)
-  //  - curtailment (leftover solar not used or stored)
-  // The load each hour = 1000 MWh/h for 1 GW.
-
-  let batterySoC = 0; // MWh state-of-charge
+  // 3) Dispatch Model
+  // We'll track solarUsed, batteryOut, gasUsed, batteryIn
+  let batterySoC = 0;
   const solarUsed = new Array(HOURS_PER_YEAR).fill(0);
   const batteryOut = new Array(HOURS_PER_YEAR).fill(0);
   const gasUsed = new Array(HOURS_PER_YEAR).fill(0);
-  const batteryIn = new Array(HOURS_PER_YEAR).fill(0); // negative => charging
+  const batteryIn = new Array(HOURS_PER_YEAR).fill(0);
 
   const maxSolarAC = solarCapMW / inverterRatio;
 
   for (let h = 0; h < HOURS_PER_YEAR; h++) {
-    let demand = 1000; // MWh/h
-
-    // Potential solar (clipped)
+    let demand = 1000; // 1 GW => 1000 MWh/h
+    // Potential solar
     const rawSolarMW = solarProfile[h] * solarCapMW;
     const clippedSolarMW = Math.min(rawSolarMW, maxSolarAC);
 
-    // 1) Use as much solar as possible to meet load
+    // Use solar
     const solarToLoad = Math.min(clippedSolarMW, demand);
     solarUsed[h] = solarToLoad;
     demand -= solarToLoad;
 
-    // 2) Surplus solar leftover
+    // Surplus leftover
     let leftoverSolar = clippedSolarMW - solarToLoad;
 
-    // 3) Charge battery with leftover solar
+    // Charge battery if leftover
     if (leftoverSolar > 0 && batterySoC < batteryCapMWh) {
-      const availableSpace = batteryCapMWh - batterySoC;
-      const charge = Math.min(leftoverSolar, availableSpace);
+      const space = batteryCapMWh - batterySoC;
+      const charge = Math.min(leftoverSolar, space);
       batterySoC += charge;
-      leftoverSolar -= charge;
       batteryIn[h] = -charge; // negative => charging
+      leftoverSolar -= charge;
     }
 
-    // leftoverSolar is now curtailed if any remains
-
-    // 4) If there's still demand, try discharging battery
+    // If still demand, discharge battery
     if (demand > 0 && batterySoC > 0) {
       const discharge = Math.min(demand, batterySoC);
       batterySoC -= discharge;
+      batteryOut[h] = discharge;
       demand -= discharge;
-      batteryOut[h] = discharge; // + => meets load
     }
 
-    // 5) If there's still demand, meet it with gas
+    // If still demand, use gas
     if (demand > 0) {
       gasUsed[h] = demand;
       demand = 0;
     }
-    // done for hour h
   }
 
   // Summaries
-  const totalSolarUsedMWh = sumArray(solarUsed);                   // directly used solar
-  const totalBatteryDischargeMWh = sumArray(batteryOut);           // battery output
-  const totalGasMWh = sumArray(gasUsed);
-  const totalDemandMWh = HOURS_PER_YEAR * 1000; // 8,760,000 MWh
+  const totalSolarUsedMWh        = sumArray(solarUsed);
+  const totalBatteryDischargeMWh = sumArray(batteryOut);
+  const totalGasMWh              = sumArray(gasUsed);
+  const totalDemandMWh           = HOURS_PER_YEAR * 1000; // 8,760,000
 
-  // === 3) LCOE Calculations ===
-  // a) Gas
+  // 4) LCOE
+  // Gas
   const gasCapMW = 1000; // 1 GW
-  // Gas capex in GBP/kW => multiply by 1000 MW => 1,000 MW * 1000 kW/MW
-  const gasCapexTotal = gasCapMW * 1000 * gasCapex; 
+  const gasCapexTotal = gasCapMW * 1000 * gasCapex; // GBP
   const crfGas = calcCRF(waccFossil, lifetimeFossil);
   const gasAnnualCapex = gasCapexTotal * crfGas;
   const gasAnnualFixedOM = gasCapMW * gasFixedOM;
-  // variable + fuel => totalGasMWh
   const gasAnnualVarOM = totalGasMWh * gasVarOM;
-  const gasAnnualFuel = totalGasMWh * gasFuel;
-  const gasAnnualCost = gasAnnualCapex + gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel;
-  const gasLcoe = (totalGasMWh > 0) ? (gasAnnualCost / totalGasMWh) : 0;
-  const gasCapexLcoe = (totalGasMWh > 0) ? (gasAnnualCapex / totalGasMWh) : 0;
-  const gasOpexLcoe  = (totalGasMWh > 0) ? ((gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel) / totalGasMWh) : 0;
+  const gasAnnualFuel  = totalGasMWh * gasFuel;
+  const gasAnnualCost  = gasAnnualCapex + gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel;
+  const gasLcoe = (totalGasMWh > 0) ? gasAnnualCost / totalGasMWh : 0;
+  const gasCapexLcoe = (totalGasMWh > 0) ? gasAnnualCapex / totalGasMWh : 0;
+  const gasOpexLcoe  = (totalGasMWh > 0) 
+    ? ( (gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel) / totalGasMWh ) 
+    : 0;
 
-  // b) Solar
-  // capacity in MW, cost in GBP/kW => multiply by 1000
+  // Solar
   const solarCapexTotal = solarCapMW * 1000 * solarCapex;
   const crfSolar = calcCRF(waccRenew, lifetimeSolar);
   const solarAnnualCapex = solarCapexTotal * crfSolar;
   const solarAnnualFixedOM = solarCapMW * solarFixedOM;
   const solarAnnualCost = solarAnnualCapex + solarAnnualFixedOM;
   const solarLcoe = (totalSolarUsedMWh > 0) ? (solarAnnualCost / totalSolarUsedMWh) : 0;
-  const solarCapexLcoe = (totalSolarUsedMWh > 0) ? (solarAnnualCapex / totalSolarUsedMWh) : 0;
-  const solarOpexLcoe  = (totalSolarUsedMWh > 0) ? (solarAnnualFixedOM / totalSolarUsedMWh) : 0;
+  const solarCapexLcoe = (totalSolarUsedMWh > 0) 
+    ? (solarAnnualCapex / totalSolarUsedMWh) 
+    : 0;
+  const solarOpexLcoe  = (totalSolarUsedMWh > 0)
+    ? (solarAnnualFixedOM / totalSolarUsedMWh)
+    : 0;
 
-  // c) Battery
-  // capacity in MWh, cost in GBP/kWh => multiply MWh by 1000
+  // Battery
   const batteryCapexTotal = batteryCapMWh * 1000 * batteryCapex;
-  // Assume 25-year life for battery
-  const crfBattery = calcCRF(waccRenew, 25);
+  const crfBattery = calcCRF(waccRenew, 25); // 25-yr battery
   const batteryAnnualCapex = batteryCapexTotal * crfBattery;
-  // approximate battery MW => MWh/4
   const batteryMW = batteryCapMWh / 4;
   const batteryAnnualFixedOM = batteryMW * batteryFixedOM;
   const batteryAnnualCost = batteryAnnualCapex + batteryAnnualFixedOM;
-  const batteryLcoe = (totalBatteryDischargeMWh > 0) ? (batteryAnnualCost / totalBatteryDischargeMWh) : 0;
-  const batteryCapexLcoe = (totalBatteryDischargeMWh > 0) ? (batteryAnnualCapex / totalBatteryDischargeMWh) : 0;
-  const batteryOpexLcoe  = (totalBatteryDischargeMWh > 0) ? (batteryAnnualFixedOM / totalBatteryDischargeMWh) : 0;
+  const batteryLcoe = (totalBatteryDischargeMWh > 0)
+    ? (batteryAnnualCost / totalBatteryDischargeMWh)
+    : 0;
+  const batteryCapexLcoe = (totalBatteryDischargeMWh > 0)
+    ? (batteryAnnualCapex / totalBatteryDischargeMWh)
+    : 0;
+  const batteryOpexLcoe  = (totalBatteryDischargeMWh > 0)
+    ? (batteryAnnualFixedOM / totalBatteryDischargeMWh)
+    : 0;
 
-  // d) System LCOE => total cost / total load
+  // System LCOE => total cost / total demand
   const totalAnnualCost = gasAnnualCost + solarAnnualCost + batteryAnnualCost;
   const systemLcoe = totalAnnualCost / totalDemandMWh;
 
-  // === 4) Update Charts
-  // We'll show "solarUsed + batteryOut + gasUsed" stacked as the portion that meets load,
-  // and "batteryIn" as negative bars to indicate charging.
-  updateAnnualMixChart(totalSolarUsedMWh, totalBatteryDischargeMWh, totalGasMWh);
-  updateYearlyProfileChart(solarUsed, batteryOut, gasUsed, batteryIn);
-  updateJanChart(solarUsed, batteryOut, gasUsed, batteryIn);
-  updateJulChart(solarUsed, batteryOut, gasUsed, batteryIn);
-  updateLcoeBreakdownChart({
-    gasCapex: gasCapexLcoe, gasOpex: gasOpexLcoe,
-    solarCapex: solarCapexLcoe, solarOpex: solarOpexLcoe,
-    batteryCapex: batteryCapexLcoe, batteryOpex: batteryOpexLcoe
+  // 5) Render Plotly charts
+  plotAnnualMixChart(totalSolarUsedMWh, totalBatteryDischargeMWh, totalGasMWh);
+  plotYearlyProfileChart(solarUsed, batteryOut, gasUsed, batteryIn);
+  plotJanChart(solarUsed, batteryOut, gasUsed, batteryIn);
+  plotJulChart(solarUsed, batteryOut, gasUsed, batteryIn);
+  plotLcoeBreakdownChart({
+    gasCapex: gasCapexLcoe,
+    gasOpex: gasOpexLcoe,
+    solarCapex: solarCapexLcoe,
+    solarOpex: solarOpexLcoe,
+    batteryCapex: batteryCapexLcoe,
+    batteryOpex: batteryOpexLcoe
   });
 
-  // === 5) Summary
+  // 6) Summary
   const summaryDiv = document.getElementById("summary");
   summaryDiv.innerHTML = `
-    <p><strong>Solar (direct to load):</strong> ${Math.round(totalSolarUsedMWh).toLocaleString()} MWh</p>
+    <p><strong>Solar Used:</strong> ${Math.round(totalSolarUsedMWh).toLocaleString()} MWh</p>
     <p><strong>Battery Discharge:</strong> ${Math.round(totalBatteryDischargeMWh).toLocaleString()} MWh</p>
     <p><strong>Gas Generation:</strong> ${Math.round(totalGasMWh).toLocaleString()} MWh</p>
-    <p><strong>Total Load:</strong> ${totalDemandMWh.toLocaleString()} MWh</p>
+    <p><strong>Total Demand:</strong> ${totalDemandMWh.toLocaleString()} MWh</p>
     <p><strong>System LCOE:</strong> ${systemLcoe.toFixed(2)} GBP/MWh</p>
-    <p>
-      <em>
-        Gas LCOE: ${gasLcoe.toFixed(2)}, 
-        Solar LCOE: ${solarLcoe.toFixed(2)}, 
-        Battery LCOE: ${batteryLcoe.toFixed(2)}
-      </em>
-    </p>
+    <p><em>
+      Gas LCOE: ${gasLcoe.toFixed(2)}, 
+      Solar LCOE: ${solarLcoe.toFixed(2)}, 
+      Battery LCOE: ${batteryLcoe.toFixed(2)}
+    </em></p>
   `;
 }
 
-/** Summation helper */
+/** Helper: sum array */
 function sumArray(arr) {
-  return arr.reduce((acc, val) => acc + val, 0);
+  return arr.reduce((a, b) => a + b, 0);
 }
 
-/** Capital Recovery Factor => annualize lump-sum capex */
+/** CRF => annualize capital */
 function calcCRF(rate, years) {
   if (rate === 0) return 1 / years;
   const top = rate * Math.pow(1 + rate, years);
@@ -212,245 +198,214 @@ function calcCRF(rate, years) {
   return top / bot;
 }
 
-/** === CHARTING === */
+/** ============ Plotly Chart Functions ============ **/
 
 /**
- * 1) Annual Mix Pie (Solar vs. Battery vs. Gas)
+ * 1) Horizontal bar for Annual Mix
  */
-let annualMixChart;
-function updateAnnualMixChart(solarMWh, batteryMWh, gasMWh) {
-  const total = solarMWh + batteryMWh + gasMWh;
-  const ctx = document.getElementById("annualMixChart").getContext("2d");
-  if (annualMixChart) annualMixChart.destroy();
+function plotAnnualMixChart(solarMWh, batteryMWh, gasMWh) {
+  const data = [{
+    type: 'bar',
+    orientation: 'h',
+    x: [solarMWh, batteryMWh, gasMWh],
+    y: ['Solar', 'Battery', 'Gas'],
+    text: [
+      `${Math.round(solarMWh).toLocaleString()} MWh`,
+      `${Math.round(batteryMWh).toLocaleString()} MWh`,
+      `${Math.round(gasMWh).toLocaleString()} MWh`
+    ],
+    textposition: 'auto',
+    marker: { color: ['#f4d44d', '#4db6e4', '#f45d5d'] }
+  }];
 
-  annualMixChart = new Chart(ctx, {
-    type: "pie",
-    data: {
-      labels: ["Solar", "Battery", "Gas"],
-      datasets: [{
-        data: [
-          (solarMWh / total) * 100,
-          (batteryMWh / total) * 100,
-          (gasMWh / total) * 100
-        ],
-        backgroundColor: ["#f4d44d", "#4db6e4", "#f45d5d"]
-      }]
-    },
-    options: {
-      plugins: {
-        title: {
-          display: true,
-          text: "Annual Generation Mix (%)"
-        }
-      }
-    }
-  });
+  const layout = {
+    title: 'Annual Generation Mix',
+    xaxis: { title: 'MWh' },
+    yaxis: { title: '' },
+    dragmode: 'zoom'
+  };
+
+  Plotly.newPlot('annualMixChart', data, layout, {scrollZoom: true});
 }
 
 /**
- * 2) Yearly Profile => stacked bar
- *    solarUsed, batteryOut, gasUsed above 0,
- *    batteryIn (charging) below 0
+ * 2) Yearly Profile => stacked bars
+ * We'll make 4 traces: batteryIn, solarUsed, batteryOut, gas
  */
-let yearlyProfileChart;
-function updateYearlyProfileChart(solarUsed, batteryOut, gasUsed, batteryIn) {
-  const ctx = document.getElementById("yearlyProfileChart").getContext("2d");
-  if (yearlyProfileChart) yearlyProfileChart.destroy();
+function plotYearlyProfileChart(solarUsed, batteryOut, gasUsed, batteryIn) {
+  const xVals = [...Array(HOURS_PER_YEAR).keys()]; // 0..8759
 
-  const labels = [...Array(HOURS_PER_YEAR).keys()];
+  const traceBatteryIn = {
+    x: xVals,
+    y: batteryIn,
+    name: 'Battery In (Charging)',
+    type: 'bar',
+    marker: { color: '#4db6e4' }
+  };
+  const traceSolar = {
+    x: xVals,
+    y: solarUsed,
+    name: 'Solar (Used)',
+    type: 'bar',
+    marker: { color: '#f4d44d' }
+  };
+  const traceBatteryOut = {
+    x: xVals,
+    y: batteryOut,
+    name: 'Battery Out',
+    type: 'bar',
+    marker: { color: '#4db6e4' }
+  };
+  const traceGas = {
+    x: xVals,
+    y: gasUsed,
+    name: 'Gas',
+    type: 'bar',
+    marker: { color: '#f45d5d' }
+  };
 
-  yearlyProfileChart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "Battery In (Charging)",
-          data: batteryIn,    // negative => below axis
-          backgroundColor: "#4db6e4",
-          stack: "stack"
-        },
-        {
-          label: "Solar (Used)",
-          data: solarUsed,
-          backgroundColor: "#f4d44d",
-          stack: "stack"
-        },
-        {
-          label: "Battery Out",
-          data: batteryOut,
-          backgroundColor: "#4db6e4",
-          stack: "stack"
-        },
-        {
-          label: "Gas",
-          data: gasUsed,
-          backgroundColor: "#f45d5d",
-          stack: "stack"
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      animation: false,
-      scales: {
-        x: { stacked: true },
-        y: {
-          stacked: true,
-          title: { display: true, text: "MWh/h" }
-        }
-      }
-    }
-  });
+  const data = [traceBatteryIn, traceSolar, traceBatteryOut, traceGas];
+
+  const layout = {
+    title: 'Yearly Profile (8760 hours)',
+    barmode: 'relative', // stacked
+    xaxis: { title: 'Hour of Year', range: [0, 8760] },
+    yaxis: { title: 'MWh/h' },
+    dragmode: 'zoom'
+  };
+
+  Plotly.newPlot('yearlyProfileChart', data, layout, {scrollZoom: true});
 }
 
 /**
  * 3) Jan Chart => first 7 days
  */
-let janProfileChart;
-function updateJanChart(solarUsed, batteryOut, gasUsed, batteryIn) {
-  const ctx = document.getElementById("janProfileChart").getContext("2d");
-  if (janProfileChart) janProfileChart.destroy();
-
+function plotJanChart(solarUsed, batteryOut, gasUsed, batteryIn) {
   const janStart = 0;
-  const janEnd = 24 * 7;
-  const labels = [...Array(janEnd - janStart).keys()];
+  const janEnd = 24*7;
+  const xVals = [...Array(janEnd - janStart).keys()];
 
-  janProfileChart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "Battery In (Charging)",
-          data: batteryIn.slice(janStart, janEnd),
-          backgroundColor: "#4db6e4",
-          stack: "stack"
-        },
-        {
-          label: "Solar (Used)",
-          data: solarUsed.slice(janStart, janEnd),
-          backgroundColor: "#f4d44d",
-          stack: "stack"
-        },
-        {
-          label: "Battery Out",
-          data: batteryOut.slice(janStart, janEnd),
-          backgroundColor: "#4db6e4",
-          stack: "stack"
-        },
-        {
-          label: "Gas",
-          data: gasUsed.slice(janStart, janEnd),
-          backgroundColor: "#f45d5d",
-          stack: "stack"
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        x: { stacked: true, title: { display: true, text: "Hour of January" } },
-        y: { stacked: true, title: { display: true, text: "MWh/h" } }
-      }
-    }
-  });
+  const traceBatteryIn = {
+    x: xVals,
+    y: batteryIn.slice(janStart, janEnd),
+    name: 'Battery In (Charging)',
+    type: 'bar',
+    marker: { color: '#4db6e4' }
+  };
+  const traceSolar = {
+    x: xVals,
+    y: solarUsed.slice(janStart, janEnd),
+    name: 'Solar (Used)',
+    type: 'bar',
+    marker: { color: '#f4d44d' }
+  };
+  const traceBatteryOut = {
+    x: xVals,
+    y: batteryOut.slice(janStart, janEnd),
+    name: 'Battery Out',
+    type: 'bar',
+    marker: { color: '#4db6e4' }
+  };
+  const traceGas = {
+    x: xVals,
+    y: gasUsed.slice(janStart, janEnd),
+    name: 'Gas',
+    type: 'bar',
+    marker: { color: '#f45d5d' }
+  };
+
+  const data = [traceBatteryIn, traceSolar, traceBatteryOut, traceGas];
+
+  const layout = {
+    title: 'January (First 7 Days)',
+    barmode: 'relative',
+    xaxis: { title: 'Hour of January' },
+    yaxis: { title: 'MWh/h' },
+    dragmode: 'zoom'
+  };
+
+  Plotly.newPlot('janProfileChart', data, layout, {scrollZoom: true});
 }
 
 /**
- * 4) Jul Chart => pick 7 days from ~ end of June
+ * 4) July Chart => ~ mid-year => pick 7 days from end of June
  */
-let julProfileChart;
-function updateJulChart(solarUsed, batteryOut, gasUsed, batteryIn) {
-  const ctx = document.getElementById("julProfileChart").getContext("2d");
-  if (julProfileChart) julProfileChart.destroy();
+function plotJulChart(solarUsed, batteryOut, gasUsed, batteryIn) {
+  const julStart = 24*(31+28+31+30+31+30); 
+  const julEnd = julStart + (24*7);
+  const xVals = [...Array(julEnd - julStart).keys()];
 
-  const julStart = 24 * (31 + 28 + 31 + 30 + 31 + 30); // end of June
-  const julEnd = julStart + (24 * 7);
-  const labels = [...Array(julEnd - julStart).keys()];
+  const traceBatteryIn = {
+    x: xVals,
+    y: batteryIn.slice(julStart, julEnd),
+    name: 'Battery In (Charging)',
+    type: 'bar',
+    marker: { color: '#4db6e4' }
+  };
+  const traceSolar = {
+    x: xVals,
+    y: solarUsed.slice(julStart, julEnd),
+    name: 'Solar (Used)',
+    type: 'bar',
+    marker: { color: '#f4d44d' }
+  };
+  const traceBatteryOut = {
+    x: xVals,
+    y: batteryOut.slice(julStart, julEnd),
+    name: 'Battery Out',
+    type: 'bar',
+    marker: { color: '#4db6e4' }
+  };
+  const traceGas = {
+    x: xVals,
+    y: gasUsed.slice(julStart, julEnd),
+    name: 'Gas',
+    type: 'bar',
+    marker: { color: '#f45d5d' }
+  };
 
-  julProfileChart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "Battery In (Charging)",
-          data: batteryIn.slice(julStart, julEnd),
-          backgroundColor: "#4db6e4",
-          stack: "stack"
-        },
-        {
-          label: "Solar (Used)",
-          data: solarUsed.slice(julStart, julEnd),
-          backgroundColor: "#f4d44d",
-          stack: "stack"
-        },
-        {
-          label: "Battery Out",
-          data: batteryOut.slice(julStart, julEnd),
-          backgroundColor: "#4db6e4",
-          stack: "stack"
-        },
-        {
-          label: "Gas",
-          data: gasUsed.slice(julStart, julEnd),
-          backgroundColor: "#f45d5d",
-          stack: "stack"
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        x: { stacked: true, title: { display: true, text: "Hour of July" } },
-        y: { stacked: true, title: { display: true, text: "MWh/h" } }
-      }
-    }
-  });
+  const data = [traceBatteryIn, traceSolar, traceBatteryOut, traceGas];
+
+  const layout = {
+    title: 'July (7 Days)',
+    barmode: 'relative',
+    xaxis: { title: 'Hour of July' },
+    yaxis: { title: 'MWh/h' },
+    dragmode: 'zoom'
+  };
+
+  Plotly.newPlot('julProfileChart', data, layout, {scrollZoom: true});
 }
 
 /**
- * 5) LCOE Breakdown => bar chart with capex vs. opex
+ * 5) LCOE Breakdown => bar chart with Gas, Solar, Battery
  */
-let lcoeBreakdownChart;
-function updateLcoeBreakdownChart(vals) {
-  const {
-    gasCapex, gasOpex,
-    solarCapex, solarOpex,
-    batteryCapex, batteryOpex
-  } = vals;
+function plotLcoeBreakdownChart(vals) {
+  const { gasCapex, gasOpex, solarCapex, solarOpex, batteryCapex, batteryOpex } = vals;
 
-  const ctx = document.getElementById("lcoeBreakdownChart").getContext("2d");
-  if (lcoeBreakdownChart) lcoeBreakdownChart.destroy();
+  const traceCapex = {
+    x: ['Gas', 'Solar', 'Battery'],
+    y: [gasCapex, solarCapex, batteryCapex],
+    name: 'Capex (GBP/MWh)',
+    type: 'bar',
+    marker: { color: '#7777ff' }
+  };
+  const traceOpex = {
+    x: ['Gas', 'Solar', 'Battery'],
+    y: [gasOpex, solarOpex, batteryOpex],
+    name: 'Opex (GBP/MWh)',
+    type: 'bar',
+    marker: { color: '#aaaaaa' }
+  };
 
-  lcoeBreakdownChart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: ["Gas", "Solar", "Battery"],
-      datasets: [
-        {
-          label: "Capex (GBP/MWh)",
-          data: [gasCapex, solarCapex, batteryCapex],
-          backgroundColor: "#7777ff"
-        },
-        {
-          label: "Opex (GBP/MWh)",
-          data: [gasOpex, solarOpex, batteryOpex],
-          backgroundColor: "#aaaaaa"
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        x: { stacked: true },
-        y: {
-          stacked: true,
-          beginAtZero: true,
-          title: { display: true, text: "GBP/MWh" }
-        }
-      }
-    }
-  });
+  const data = [traceCapex, traceOpex];
+  const layout = {
+    title: 'Levelized Cost Breakdown',
+    barmode: 'stack',
+    xaxis: { title: '' },
+    yaxis: { title: 'GBP/MWh' },
+    dragmode: 'zoom'
+  };
+
+  Plotly.newPlot('lcoeBreakdownChart', data, layout, {scrollZoom: true});
 }
