@@ -118,7 +118,8 @@
             <input type="number" id="gasVarOM" value="4" step="1" />
 
             <label for="gasFuel">Gas Fuel (GBP/MWh):</label>
-            <input type="number" id="gasFuel" value="27" step="1" />
+            <!-- Default to 28 now -->
+            <input type="number" id="gasFuel" value="28" step="1" />
 
             <label for="gasEfficiency">Gas Efficiency (%):</label>
             <input type="number" id="gasEfficiency" value="45" step="1" />
@@ -172,7 +173,7 @@
           <canvas id="julProfileChart"></canvas>
         </div>
 
-        <!-- Final stacked bar: Gas/Solar/Battery for [Capex, Opex, Total], plus summary below -->
+        <!-- Final stacked bar: Gas/Solar/Battery for [Capex, Opex, Total] -->
         <div class="chart-box">
           <h3>Levelized System Cost (Waterfall)</h3>
           <canvas id="systemCostChart"></canvas>
@@ -187,7 +188,7 @@
     Created by <strong>Daan Walter</strong>, 2025
   </footer>
 
-  <!-- Our revised code in model.js -->
+  <!-- Our final model.js code -->
   <script src="model.js"></script>
 </body>
 </html>
