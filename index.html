@@ -1,197 +1,395 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LCOE Calculator</title>
+let annualMixChart, lcoeChart, yearlyProfileChart, janProfileChart, julProfileChart;
 
-  <!-- External CSS -->
-  <link rel="stylesheet" href="style.css" />
+function runModel(){
+  const solarCapGW = parseFloat(document.getElementById("solarCap").value)||0;
+  const batteryCapGWh= parseFloat(document.getElementById("batteryCap").value)||0;
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  const gasCapex = parseFloat(document.getElementById("gasCapex").value)||800;
+  const solarCapex = parseFloat(document.getElementById("solarCapex").value)||450;
+  const batteryCapex= parseFloat(document.getElementById("batteryCapex").value)||200;
 
-  <!-- Tippy.js + Popper.js (for tooltips, if needed) -->
-  <script src="https://unpkg.com/@popperjs/core@2"></script>
-  <script src="https://unpkg.com/tippy.js@6"></script>
-  <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale.css"/>
+  const gasFixedOM= parseFloat(document.getElementById("gasFixedOM").value)||18000;
+  const solarFixedOM= parseFloat(document.getElementById("solarFixedOM").value)||8000;
+  const batteryFixedOM= parseFloat(document.getElementById("batteryFixedOM").value)||6000;
 
-  <script>
-    // Set Chart.js default font family and size (Poppins, 15px)
-    Chart.defaults.font.family = 'Poppins, sans-serif';
-    Chart.defaults.font.size = 15;
-  </script>
-</head>
-<body>
-  <header class="container">
-    <h1>LCOE Calculator</h1>
-    <p class="disclaimer">
-      This is a high-level LCOE model. All numbers and assumptions are for demonstration only 
-      and should not be taken as precise forecasts.
-    </p>
-  </header>
+  const gasVarOM= parseFloat(document.getElementById("gasVarOM").value)||4;
+  const gasFuel = parseFloat(document.getElementById("gasFuel").value)||40;
+  const gasEff  = (parseFloat(document.getElementById("gasEfficiency").value)||45)/100;
 
-  <div class="container sim-container">
-    <!-- SIDEBAR -->
-    <div id="sidebar">
-      <h2>Model parameters</h2>
+  const inverterRatio= parseFloat(document.getElementById("inverterRatio").value)||1.2;
+  const waccFossil= (parseFloat(document.getElementById("waccFossil").value)||8)/100;
+  const waccRenew= (parseFloat(document.getElementById("waccRenew").value)||5)/100;
 
-      <!-- Group: System Configuration -->
-      <div class="group">
-        <h3 class="group-title collapsed" onclick="toggleGroup(this)">System Configuration</h3>
-        <div class="group-content">
-          <fieldset>
-            <legend>Capacities</legend>
-            <label for="solarCap">Solar Capacity (GW):</label>
-            <input type="number" id="solarCap" value="6" step="0.1" />
+  const lifetimeFossil= parseFloat(document.getElementById("lifetimeFossil").value)||25;
+  const lifetimeSolar = parseFloat(document.getElementById("lifetimeSolar").value)||35;
 
-            <label for="batteryCap">Battery Capacity (GWh):</label>
-            <input type="number" id="batteryCap" value="10" step="1" />
-          </fieldset>
-        </div>
-      </div>
+  const solarCapMW = solarCapGW*1000;
+  const batteryCapMWh= batteryCapGWh*1000;
 
-      <!-- Group: Assumptions -->
-      <div class="group">
-        <h3 class="group-title collapsed" onclick="toggleGroup(this)">Assumptions</h3>
-        <div class="group-content">
-          <fieldset>
-            <legend>Costs</legend>
-            <label for="gasCapex">Gas Capex (GBP/kW):</label>
-            <input type="number" id="gasCapex" value="800" step="1" />
+  const HOURS=8760;
+  let batterySoC=0;
 
-            <label for="solarCapex">Solar Capex (GBP/kW):</label>
-            <input type="number" id="solarCapex" value="450" step="1" />
+  const chartSolarFlow= new Array(HOURS).fill(0);
+  const usedSolarFlow= new Array(HOURS).fill(0);
+  const batteryOutFlow= new Array(HOURS).fill(0);
+  const batteryInFlow= new Array(HOURS).fill(0);
+  const gasFlow= new Array(HOURS).fill(0);
 
-            <label for="batteryCapex">Battery Capex (GBP/kWh):</label>
-            <input type="number" id="batteryCapex" value="200" step="1" />
-          </fieldset>
+  const maxSolarAC= solarCapMW/ inverterRatio;
 
-          <fieldset>
-            <legend>O&amp;M</legend>
-            <label for="gasFixedOM">Gas Fixed O&amp;M (GBP/MW/yr):</label>
-            <input type="number" id="gasFixedOM" value="18000" step="100" />
+  for(let h=0; h<HOURS; h++){
+    let demand=1000; 
+    // placeholder real-ish approach: day hours => capacity factor 0.6, else 0
+    const hour= h%24;
+    let rawSolar=0;
+    if(hour>=7 && hour<19) rawSolar= solarCapMW*0.6;
+    const clippedSolar= Math.min(rawSolar, maxSolarAC);
 
-            <label for="solarFixedOM">Solar Fixed O&amp;M (GBP/MW/yr):</label>
-            <input type="number" id="solarFixedOM" value="8000" step="100" />
+    chartSolarFlow[h]= clippedSolar;
 
-            <label for="batteryFixedOM">Battery Fixed O&amp;M (GBP/MW/yr):</label>
-            <input type="number" id="batteryFixedOM" value="6000" step="100" />
+    const used= Math.min(clippedSolar, demand);
+    usedSolarFlow[h]= used;
+    demand-= used;
 
-            <label for="gasVarOM">Gas Variable O&amp;M (GBP/MWh):</label>
-            <input type="number" id="gasVarOM" value="4" step="1" />
-
-            <label for="gasFuel">Gas Fuel (GBP/MWh_fuel):</label>
-            <input type="number" id="gasFuel" value="40" step="1" />
-          </fieldset>
-
-          <fieldset>
-            <legend>Other</legend>
-            <label for="gasEfficiency">Gas Efficiency (%):</label>
-            <input type="number" id="gasEfficiency" value="45" step="1" />
-
-            <label for="inverterRatio">Inverter Ratio:</label>
-            <input type="number" id="inverterRatio" value="1.2" step="0.1" />
-
-            <label for="waccFossil">WACC Fossil (%):</label>
-            <input type="number" id="waccFossil" value="8" step="0.1" />
-
-            <label for="waccRenew">WACC Renew (%):</label>
-            <input type="number" id="waccRenew" value="5" step="0.1" />
-
-            <label for="lifetimeFossil">Lifetime (fossil) (yrs):</label>
-            <input type="number" id="lifetimeFossil" value="25" step="1" />
-
-            <label for="lifetimeSolar">Lifetime (solar) (yrs):</label>
-            <input type="number" id="lifetimeSolar" value="35" step="1" />
-          </fieldset>
-        </div>
-      </div>
-    </div>
-
-    <!-- CONTENT: charts + update button -->
-    <div id="content">
-      <!-- Update button above the charts -->
-      <button id="updateBtn" style="margin-bottom: 1rem;">Update</button>
-
-      <!-- Chart 1: Generation Mix (horizontal) -->
-      <div class="chart-box">
-        <h3>Generation Mix</h3>
-        <div class="chart-container">
-          <canvas id="genMixChart"></canvas>
-        </div>
-      </div>
-
-      <!-- Chart 2: LCOE Breakdown (horizontal) -->
-      <div class="chart-box">
-        <h3>LCOE Breakdown</h3>
-        <div class="chart-container">
-          <canvas id="lcoeChart"></canvas>
-        </div>
-      </div>
-
-      <!-- Chart 3: Yearly Profile (stacked bar) -->
-      <div class="chart-box">
-        <h3>Yearly Profile</h3>
-        <div class="chart-container">
-          <canvas id="yearlyChart"></canvas>
-        </div>
-      </div>
-
-      <!-- Chart 4: January (first 7 days) -->
-      <div class="chart-box">
-        <h3>January (7 days)</h3>
-        <div class="chart-container">
-          <canvas id="janChart"></canvas>
-        </div>
-      </div>
-
-      <!-- Chart 5: July (7 days) -->
-      <div class="chart-box">
-        <h3>July (7 days)</h3>
-        <div class="chart-container">
-          <canvas id="julChart"></canvas>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <footer>
-    Created by <strong>Daan Walter</strong>, 2025
-  </footer>
-
-  <script>
-    // Toggle group content display on click and update arrow.
-    function toggleGroup(el) {
-      const content = el.nextElementSibling;
-      if (content.style.display === "none" || content.style.display === "") {
-        content.style.display = "block";
-        el.classList.remove("collapsed");
-        el.classList.add("expanded");
-      } else {
-        content.style.display = "none";
-        el.classList.remove("expanded");
-        el.classList.add("collapsed");
-      }
+    let leftover= clippedSolar- used;
+    if(leftover>0 && batterySoC< batteryCapMWh){
+      const space= batteryCapMWh- batterySoC;
+      const charge= Math.min(leftover, space);
+      batterySoC+= charge;
+      leftover-= charge;
+      batteryInFlow[h]= -charge; 
     }
 
-    document.addEventListener("DOMContentLoaded", function() {
-      // Collapse all .group by default
-      document.querySelectorAll('.group-title').forEach(el => {
-        el.classList.add("collapsed");
-        const content = el.nextElementSibling;
-        content.style.display = "none";
-      });
+    if(demand>0 && batterySoC>0){
+      const discharge= Math.min(demand, batterySoC);
+      batterySoC-= discharge;
+      batteryOutFlow[h]= discharge;
+      demand-= discharge;
+    }
 
-      // Initialize Tippy if needed
-      tippy('[data-tippy-content]', {
-        animation: 'scale',
-        theme: 'light-border'
-      });
-    });
-  </script>
+    if(demand>0){
+      gasFlow[h]= demand;
+      demand=0;
+    }
+  }
 
-  <!-- Our main LCOE logic -->
-  <script src="model.js"></script>
-</body>
-</html>
+  const totalSolarUsed= sum(usedSolarFlow);
+  const totalBattery= sum(batteryOutFlow);
+  const totalGas= sum(gasFlow);
+  const totalDemand= HOURS*1000;
+
+  const gasCapMW=1000;
+  const gasCapexTotal= gasCapMW*1000* gasCapex;
+  const crfGas= CRF(waccFossil, lifetimeFossil);
+  const gasAnnualCapex= gasCapexTotal* crfGas;
+  const gasAnnualFixedOM= gasCapMW* gasFixedOM;
+  const gasFuelCost= (totalGas/ gasEff)* gasFuel;
+  const gasVarCost= totalGas* gasVarOM;
+  const gasAnnualCost= gasAnnualCapex+ gasAnnualFixedOM+ gasFuelCost+ gasVarCost;
+
+  const solarCapexTotal= solarCapMW*1000* solarCapex;
+  const crfSolar= CRF(waccRenew, lifetimeSolar);
+  const solarAnnualCapex= solarCapexTotal* crfSolar;
+  const solarAnnualFixedOM= solarCapMW* solarFixedOM;
+  const solarAnnualCost= solarAnnualCapex+ solarAnnualFixedOM;
+
+  const batteryCapexTotal= batteryCapMWh*1000* batteryCapex;
+  const crfBattery= CRF(waccRenew, 25);
+  const batteryAnnualCapex= batteryCapexTotal* crfBattery;
+  const batteryMW= batteryCapMWh/4;
+  const batteryAnnualFixedOM= batteryMW* batteryFixedOM;
+  const batteryAnnualCost= batteryAnnualCapex+ batteryAnnualFixedOM;
+
+  const gasLcoe= (totalGas>0)? gasAnnualCost/ totalGas:0;
+  const solarLcoe= (totalSolarUsed>0)? solarAnnualCost/ totalSolarUsed:0;
+  const batteryLcoe= (totalBattery>0)? batteryAnnualCost/ totalBattery:0;
+
+  const totalAnnualCost= gasAnnualCost+ solarAnnualCost+ batteryAnnualCost;
+  const systemLcoe= totalAnnualCost/ totalDemand;
+
+  updateAnnualMixChart(totalGas, totalSolarUsed, totalBattery);
+  updateLcoeChart(
+    (gasAnnualCapex/ totalGas)||0,
+    ((gasAnnualFixedOM+ gasFuelCost+ gasVarCost)/ totalGas)||0,
+    (solarAnnualCapex/ totalSolarUsed)||0,
+    (solarAnnualFixedOM/ totalSolarUsed)||0,
+    (batteryAnnualCapex/ totalBattery)||0,
+    (batteryAnnualFixedOM/ totalBattery)||0,
+    systemLcoe
+  );
+
+  updateYearChart(chartSolarFlow, batteryInFlow, batteryOutFlow, gasFlow);
+  updateJanChart(chartSolarFlow, batteryInFlow, batteryOutFlow, gasFlow);
+  updateJulChart(chartSolarFlow, batteryInFlow, batteryOutFlow, gasFlow);
+}
+
+function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
+function CRF(r, n){
+  if(r===0)return 1/n;
+  const top= r* Math.pow(1+r,n);
+  const bot= Math.pow(1+r,n)-1;
+  return top/bot;
+}
+
+function updateAnnualMixChart(gasMWh, solarMWh, batteryMWh){
+  if(annualMixChart) annualMixChart.destroy();
+  const ctx= document.getElementById("annualMixChart").getContext("2d");
+  annualMixChart= new Chart(ctx,{
+    type:"bar",
+    data:{
+      labels:["Generation Mix"],
+      datasets:[
+        {
+          label:"Gas",
+          data:[gasMWh],
+          backgroundColor:"#f45d5d",
+          stack:"mix"
+        },
+        {
+          label:"Solar",
+          data:[solarMWh],
+          backgroundColor:"#13ce74",
+          stack:"mix"
+        },
+        {
+          label:"Battery",
+          data:[batteryMWh],
+          backgroundColor:"#4db6e4",
+          stack:"mix"
+        }
+      ]
+    },
+    options:{
+      indexAxis:"y",
+      responsive:true,
+      scales:{
+        x:{ stacked:true, title:{display:true, text:"MWh"} },
+        y:{ stacked:true }
+      },
+      plugins:{
+        title:{ display:true, text:"Generation Mix (MWh)" }
+      }
+    }
+  });
+}
+
+function updateLcoeChart(
+  gasCapex, gasOpex,
+  solarCapex, solarOpex,
+  batteryCapex, batteryOpex,
+  systemLcoe
+){
+  if(lcoeChart) lcoeChart.destroy();
+  const ctx= document.getElementById("lcoeChart").getContext("2d");
+  lcoeChart= new Chart(ctx,{
+    type:"bar",
+    data:{
+      labels:["System LCOE"],
+      datasets:[
+        {
+          label:"Gas CapEx",
+          data:[gasCapex],
+          backgroundColor:"#f45d5d",
+          stack:"lcoe"
+        },
+        {
+          label:"Gas OpEx",
+          data:[gasOpex],
+          backgroundColor:"rgba(244,93,93,0.5)",
+          stack:"lcoe"
+        },
+        {
+          label:"Solar CapEx",
+          data:[solarCapex],
+          backgroundColor:"#13ce74",
+          stack:"lcoe"
+        },
+        {
+          label:"Solar OpEx",
+          data:[solarOpex],
+          backgroundColor:"rgba(19,206,116,0.5)",
+          stack:"lcoe"
+        },
+        {
+          label:"Battery CapEx",
+          data:[batteryCapex],
+          backgroundColor:"#4db6e4",
+          stack:"lcoe"
+        },
+        {
+          label:"Battery OpEx",
+          data:[batteryOpex],
+          backgroundColor:"rgba(77,182,228,0.5)",
+          stack:"lcoe"
+        }
+      ]
+    },
+    options:{
+      indexAxis:"y",
+      responsive:true,
+      scales:{
+        x:{ stacked:true, title:{display:true, text:"GBP/MWh"} },
+        y:{ stacked:true }
+      },
+      plugins:{
+        title:{
+          display:true,
+          text:`Total System LCOE ~ ${systemLcoe.toFixed(2)} GBP/MWh`
+        }
+      }
+    }
+  });
+}
+
+function updateYearChart(solarFlow, batteryIn, batteryOut, gasFlow){
+  if(yearlyProfileChart) yearlyProfileChart.destroy();
+  const ctx= document.getElementById("yearlyProfileChart").getContext("2d");
+  const HOURS=8760;
+  const labels= [...Array(HOURS).keys()];
+
+  yearlyProfileChart= new Chart(ctx,{
+    type:"bar",
+    data:{
+      labels,
+      datasets:[
+        {
+          label:"Battery In (Charging)",
+          data:batteryIn,
+          backgroundColor:"#4db6e4",
+          stack:"stack"
+        },
+        {
+          label:"Solar (All)",
+          data:solarFlow,
+          backgroundColor:"#13ce74",
+          stack:"stack"
+        },
+        {
+          label:"Battery Out",
+          data:batteryOut,
+          backgroundColor:"rgba(77,182,228,0.5)",
+          stack:"stack"
+        },
+        {
+          label:"Gas",
+          data:gasFlow,
+          backgroundColor:"#f45d5d",
+          stack:"stack"
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      animation:false,
+      scales:{
+        x:{ stacked:true, title:{display:true,text:"Hour of Year"} },
+        y:{ stacked:true, title:{display:true,text:"MWh/h"} }
+      },
+      plugins:{
+        title:{display:true, text:"Yearly Profile (8760 hours)"}
+      }
+    }
+  });
+}
+
+function updateJanChart(solarFlow, batteryIn, batteryOut, gasFlow){
+  if(janProfileChart) janProfileChart.destroy();
+  const ctx= document.getElementById("janProfileChart").getContext("2d");
+  const janStart=0, janEnd=24*7;
+  const labels= [...Array(janEnd-janStart).keys()];
+
+  janProfileChart= new Chart(ctx,{
+    type:"bar",
+    data:{
+      labels,
+      datasets:[
+        {
+          label:"Battery In",
+          data:batteryIn.slice(janStart, janEnd),
+          backgroundColor:"#4db6e4",
+          stack:"stack"
+        },
+        {
+          label:"Solar (All)",
+          data:solarFlow.slice(janStart, janEnd),
+          backgroundColor:"#13ce74",
+          stack:"stack"
+        },
+        {
+          label:"Battery Out",
+          data:batteryOut.slice(janStart, janEnd),
+          backgroundColor:"rgba(77,182,228,0.5)",
+          stack:"stack"
+        },
+        {
+          label:"Gas",
+          data:gasFlow.slice(janStart, janEnd),
+          backgroundColor:"#f45d5d",
+          stack:"stack"
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      scales:{
+        x:{ stacked:true, title:{display:true,text:"Hour of January"} },
+        y:{ stacked:true, title:{display:true,text:"MWh/h"} }
+      },
+      plugins:{
+        title:{display:true, text:"January (7 days)"}
+      }
+    }
+  });
+}
+
+function updateJulChart(solarFlow, batteryIn, batteryOut, gasFlow){
+  if(julProfileChart) julProfileChart.destroy();
+  const ctx= document.getElementById("julProfileChart").getContext("2d");
+  // approximate
+  const julStart= 4344;
+  const julEnd= julStart+ 24*7;
+  const labels= [...Array(julEnd- julStart).keys()];
+
+  julProfileChart= new Chart(ctx,{
+    type:"bar",
+    data:{
+      labels,
+      datasets:[
+        {
+          label:"Battery In",
+          data:batteryIn.slice(julStart, julEnd),
+          backgroundColor:"#4db6e4",
+          stack:"stack"
+        },
+        {
+          label:"Solar (All)",
+          data:solarFlow.slice(julStart, julEnd),
+          backgroundColor:"#13ce74",
+          stack:"stack"
+        },
+        {
+          label:"Battery Out",
+          data:batteryOut.slice(julStart, julEnd),
+          backgroundColor:"rgba(77,182,228,0.5)",
+          stack:"stack"
+        },
+        {
+          label:"Gas",
+          data:gasFlow.slice(julStart, julEnd),
+          backgroundColor:"#f45d5d",
+          stack:"stack"
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      scales:{
+        x:{ stacked:true, title:{display:true,text:"Hour of July"} },
+        y:{ stacked:true, title:{display:true,text:"MWh/h"} }
+      },
+      plugins:{
+        title:{display:true, text:"July (7 days)"}
+      }
+    }
+  });
+}
