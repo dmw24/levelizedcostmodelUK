@@ -84,16 +84,20 @@
   <!-- === Output Dashboard === -->
   <section id="results">
     <h2>Results</h2>
+
+    <!-- Annual Mix -->
     <div class="chart-row">
       <div>
         <h3>Annual Generation Mix</h3>
         <canvas id="annualMixChart"></canvas>
       </div>
       <div>
-        <h3>Yearly Generation Profile</h3>
+        <h3>Yearly Profile</h3>
         <canvas id="yearlyProfileChart"></canvas>
       </div>
     </div>
+
+    <!-- Jan / Jul -->
     <div class="chart-row">
       <div>
         <h3>Selected January Days</h3>
@@ -104,9 +108,11 @@
         <canvas id="julProfileChart"></canvas>
       </div>
     </div>
+
+    <!-- LCOE breakdown & summary -->
     <div class="chart-row">
       <div>
-        <h3>Levelized Cost Breakdown</h3>
+        <h3>Levelized Cost Breakdown (Stacked)</h3>
         <canvas id="lcoeBreakdownChart"></canvas>
       </div>
       <div>
@@ -122,3 +128,4 @@
   <script src="model.js"></script>
 </body>
 </html>
+
