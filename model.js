@@ -1,11 +1,11 @@
 /***************************************************
  * model.js
  * 
- * 1) Gas capacity is fixed at 1 GW
- * 2) Default gas price: 27 GBP/MWh
- * 3) Gas Efficiency input is in O&M group
- * 4) Waterfall LCOE chart: 3 bars (Capex, Opex, Total),
- *    each with data labels on top
+ * 1) Gas capacity fixed at 1 GW (not user-editable)
+ * 2) Gas WACC default 7.5%
+ * 3) Final "Levelized System Cost" chart is horizontal bar:
+ *    bars = [Capex, Opex, Total]
+ * 4) Display "Total levelized system cost: XX" below chart
  ***************************************************/
 
 let solarProfile = [];
@@ -28,7 +28,7 @@ window.onload = () => {
 
 function runModel() {
   // 1) Read user inputs
-  // Gas capacity is fixed = 1 GW => 1000 MW
+  // Gas capacity fixed => 1 GW => 1000 MW
   const gasCapMW = 1000;
 
   const solarCapGW = parseFloat(document.getElementById("solarCap").value) || 0;
@@ -47,7 +47,7 @@ function runModel() {
   const gasEfficiency = (parseFloat(document.getElementById("gasEfficiency").value) || 45) / 100;
 
   const inverterRatio = parseFloat(document.getElementById("inverterRatio").value) || 1.2;
-  const waccFossil = (parseFloat(document.getElementById("waccFossil").value) || 8) / 100;
+  const waccFossil = (parseFloat(document.getElementById("waccFossil").value) || 7.5) / 100;
   const waccRenew = (parseFloat(document.getElementById("waccRenew").value) || 5) / 100;
 
   const lifetimeFossil = parseFloat(document.getElementById("lifetimeFossil").value) || 25;
@@ -67,7 +67,6 @@ function runModel() {
   // For the hourly chart, just show total clipped solar
   const totalSolarFlow = new Array(HOURS_PER_YEAR).fill(0);
 
-  // Gas capacity is 1000 MW, but we don't let user change it
   const maxSolarAC = solarCapMW / inverterRatio;
 
   for (let h = 0; h < HOURS_PER_YEAR; h++) {
@@ -122,13 +121,13 @@ function runModel() {
   const totalBatteryDischarge = sumArray(batteryFlow.map(x => (x > 0 ? x : 0)));
   const totalGasMWh = sumArray(gasFlow);
   const totalCurtailed = sumArray(solarCurtailedFlow);
-  const totalSolarGen = sumArray(totalSolarFlow); // for reference
+  const totalSolarGen = sumArray(totalSolarFlow);
 
   const totalDemandMWh = HOURS_PER_YEAR * 1000; 
 
-  // 4) LCOE
+  // 4) Cost & "Levelized System Cost"
   // a) Gas
-  const gasCapexTotal = gasCapMW * 1000 * gasCapex; // e.g. 1000 MW * 1000 kW/MW * 800 GBP/kW
+  const gasCapexTotal = gasCapMW * 1000 * gasCapex;
   const crfGas = calcCRF(waccFossil, lifetimeFossil);
   const gasAnnualCapex = gasCapexTotal * crfGas;
   const gasAnnualFixedOM = gasCapMW * gasFixedOM;
@@ -137,7 +136,7 @@ function runModel() {
   if (gasEfficiency > 0) {
     gasFuelConsumed = totalGasMWh / gasEfficiency; 
   }
-  const gasAnnualFuel = gasFuelConsumed * gasFuel; 
+  const gasAnnualFuel = gasFuelConsumed * gasFuel;
   const gasAnnualCost = gasAnnualCapex + gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel;
 
   // b) Solar
@@ -155,23 +154,16 @@ function runModel() {
   const batteryAnnualFixedOM = batteryMW * batteryFixedOM;
   const batteryAnnualCost = batteryAnnualCapex + batteryAnnualFixedOM;
 
-  // Annual total cost
+  // Sum
   const totalAnnualCost = gasAnnualCost + solarAnnualCost + batteryAnnualCost;
-  const systemLcoe = totalAnnualCost / totalDemandMWh;
+  const levelizedSystemCost = totalAnnualCost / totalDemandMWh; // GBP/MWh
 
-  // We'll define separate "capex portion" and "opex portion" for the entire system
-  // so we can do a "waterfall" with 3 bars: capex, opex, total
-  // - systemCapex = (gasAnnualCapex + solarAnnualCapex + batteryAnnualCapex) / totalDemandMWh
-  // - systemOpex = ( (gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel) + solarAnnualFixedOM + batteryAnnualFixedOM ) / totalDemandMWh
-  // - total = systemCapex + systemOpex (should match systemLcoe)
-  const systemCapex = (gasAnnualCapex + solarAnnualCapex + batteryAnnualCapex) / totalDemandMWh;
-  const systemOpex  = (
-    (gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel) +
-    solarAnnualFixedOM +
-    batteryAnnualFixedOM
-  ) / totalDemandMWh;
-  // The sum
-  const systemTotal = systemCapex + systemOpex; // should ~ systemLcoe
+  // Break out capex vs. opex (for the horizontal bar)
+  const totalCapex = gasAnnualCapex + solarAnnualCapex + batteryAnnualCapex;
+  const totalOpex = (gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel) + solarAnnualFixedOM + batteryAnnualFixedOM;
+  const systemCapex = totalCapex / totalDemandMWh;
+  const systemOpex = totalOpex / totalDemandMWh;
+  const systemTotal = systemCapex + systemOpex; // should match levelizedSystemCost
 
   // 5) Update Charts
 
@@ -192,12 +184,16 @@ function runModel() {
   // d) July
   updateJulChart(totalSolarFlow, batteryFlow, gasFlow);
 
-  // e) Waterfall LCOE chart => 3 bars: [Capex, Opex, Total]
-  updateSystemLcoeChart({
+  // e) Horizontal bar for "Capex", "Opex", "Total"
+  updateSystemCostChart({
     capexVal: systemCapex,
     opexVal: systemOpex,
     totalVal: systemTotal
   });
+
+  // Show a text line below chart
+  const resultDiv = document.getElementById("levelizedCostResult");
+  resultDiv.innerHTML = `Total levelized system cost: ${systemTotal.toFixed(2)} GBP/MWh`;
 }
 
 /** Helpers */
@@ -212,7 +208,7 @@ function calcCRF(rate, years) {
   return top / bot;
 }
 
-/** === Charting === */
+/** ========== Charts ========== */
 
 // 1) Generation horizontal bar => 4 bars: Gas, Used Solar, Battery, Curtailed
 let generationChart;
@@ -407,50 +403,39 @@ function updateJulChart(solarFlow, batteryFlow, gasFlow) {
   });
 }
 
-// 5) Waterfall LCOE chart => 3 bars: Capex, Opex, Total
-let systemLcoeChart;
-function updateSystemLcoeChart({ capexVal, opexVal, totalVal }) {
-  const ctx = document.getElementById("systemLcoeChart").getContext("2d");
-  if (systemLcoeChart) systemLcoeChart.destroy();
+// 5) Horizontal bar for Capex, Opex, Total
+let systemCostChart;
+function updateSystemCostChart({ capexVal, opexVal, totalVal }) {
+  const ctx = document.getElementById("systemCostChart").getContext("2d");
+  if (systemCostChart) systemCostChart.destroy();
 
-  systemLcoeChart = new Chart(ctx, {
+  systemCostChart = new Chart(ctx, {
     type: "bar",
     data: {
       labels: ["Capex", "Opex", "Total"],
-      datasets: [
-        {
-          label: "GBP/MWh",
-          data: [capexVal, opexVal, totalVal],
-          backgroundColor: ["#66CC99", "#FFCC66", "#9999FF"]
-        }
-      ]
+      datasets: [{
+        label: "GBP/MWh",
+        data: [capexVal, opexVal, totalVal],
+        backgroundColor: ["#66CC99", "#FFCC66", "#9999FF"]
+      }]
     },
     options: {
+      indexAxis: "y", // horizontal
       responsive: true,
       plugins: {
-        legend: { display: false },
         title: {
           display: true,
-          text: "Total LCOE Waterfall"
+          text: "Levelized System Cost Breakdown"
         },
-        // Show numeric labels on top of each bar
-        datalabels: {
-          anchor: "end",
-          align: "start",
-          offset: 5,
-          formatter: function(value) {
-            return value.toFixed(2);
-          }
-        }
+        legend: { display: false }
       },
       scales: {
         x: {
-          title: { display: false },
-          grid: { display: false }
-        },
-        y: {
           beginAtZero: true,
           title: { display: true, text: "GBP/MWh" }
+        },
+        y: {
+          title: { display: false }
         }
       }
     }
