@@ -2,185 +2,219 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <title>LCOE Calculator (Plotly Edition)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LCOE Calculator</title>
 
-  <!-- Link to your external CSS -->
-  <link rel="stylesheet" href="style.css" />
-
-  <!-- Chart.js, PapaParse, Tippy.js (for tooltips) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Plotly.js for interactive charts (zoom, pan, etc.) -->
+  <script src="https://cdn.plot.ly/plotly-2.16.1.min.js"></script>
+  <!-- PapaParse for CSV loading -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
-  <script src="https://unpkg.com/@popperjs/core@2"></script>
-  <script src="https://unpkg.com/tippy.js@6"></script>
-  <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale.css"/>
 
-  <script>
-    // Chart.js defaults
-    Chart.defaults.font.family = 'Poppins, sans-serif';
-    Chart.defaults.font.size = 15;
-
-    // Toggle group content display on click
-    function toggleGroup(el) {
-      const content = el.nextElementSibling;
-      if (content.style.display === "none" || content.style.display === "") {
-        content.style.display = "block";
-        el.classList.remove("collapsed");
-        el.classList.add("expanded");
-      } else {
-        content.style.display = "none";
-        el.classList.remove("expanded");
-        el.classList.add("collapsed");
-      }
+  <!-- Minimal styling for two-column layout -->
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      color: #333;
     }
-
-    // Collapse groups on load, init tooltips
-    document.addEventListener("DOMContentLoaded", function() {
-      document.querySelectorAll('.group-title').forEach(el => {
-        el.classList.add("collapsed");
-        const content = el.nextElementSibling;
-        content.style.display = "none";
-      });
-      tippy('[data-tippy-content]', {
-        animation: 'scale',
-        theme: 'light-border'
-      });
-    });
-  </script>
+    header {
+      background: #fff;
+      border-bottom: 1px solid #ccc;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.8em;
+    }
+    header p.disclaimer {
+      margin: 0.3rem 0 0;
+      font-size: 0.85em;
+      color: #666;
+    }
+    .container {
+      display: flex;
+      gap: 20px;
+      margin: 0 auto;
+      max-width: 1200px;
+      padding: 1rem;
+    }
+    /* Sidebar with inputs */
+    #sidebar {
+      width: 300px;
+      background: #fff;
+      padding: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    #sidebar h2 {
+      margin-top: 0;
+    }
+    #sidebar label {
+      display: block;
+      margin: 0.5rem 0 0.2rem;
+      font-weight: 600;
+    }
+    #sidebar input[type="number"] {
+      width: 100%;
+      padding: 0.3rem;
+      margin-bottom: 0.5rem;
+    }
+    button {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background: #007bff;
+      color: #fff;
+    }
+    button:hover {
+      background: #005dc1;
+    }
+    /* Content area (charts) */
+    #content {
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    /* Each chart container */
+    .chart-box {
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 0.5rem;
+      flex: 1 1 400px; /* flexible item min 400px wide */
+      min-width: 350px;
+    }
+    .chart-box h3 {
+      margin-top: 0;
+      font-size: 1.1em;
+      margin-bottom: 0.5rem;
+    }
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 0.5rem;
+      background: #fff;
+      border-top: 1px solid #ccc;
+      margin-top: 1rem;
+      font-size: 0.8em;
+      color: #666;
+    }
+    @media screen and (max-width: 768px) {
+      .container { flex-direction: column; }
+      #sidebar { width: 100%; margin-bottom: 1rem; }
+    }
+  </style>
 </head>
 <body>
-  <!-- HEADER -->
-  <header class="container">
-    <h1>LCOE Calculator</h1>
+  <header>
+    <h1>LCOE Calculator (Plotly)</h1>
     <p class="disclaimer">
-      This is a high-level LCOE model for demonstration only. Numbers are approximate.
+      A high-level LCOE model using Plotly for interactive charts. Numbers are approximate and for demo only.
     </p>
   </header>
 
-  <!-- MAIN LAYOUT WRAPPER -->
-  <div class="container sim-container">
-    <!-- SIDEBAR with input parameters -->
+  <div class="container">
+    <!-- SIDEBAR: user inputs -->
     <div id="sidebar">
-      <h2>Model Parameters</h2>
+      <h2>Model Inputs</h2>
+      <!-- System capacity -->
+      <label for="solarCap">Solar Capacity (GW):</label>
+      <input type="number" id="solarCap" value="6" step="0.1" />
 
-      <!-- Group: System Configuration -->
-      <div class="group">
-        <h3 class="group-title" onclick="toggleGroup(this)">System Configuration</h3>
-        <div class="group-content">
-          <fieldset>
-            <legend>Capacity</legend>
-            <label for="solarCap" data-tippy-content="Solar capacity in GW">Solar Capacity (GW):</label>
-            <input type="number" id="solarCap" value="6" step="0.1" />
+      <label for="batteryCap">Battery Capacity (GWh):</label>
+      <input type="number" id="batteryCap" value="10" step="1" />
 
-            <label for="batteryCap" data-tippy-content="Battery capacity in GWh">Battery Capacity (GWh):</label>
-            <input type="number" id="batteryCap" value="10" step="1" />
-          </fieldset>
-        </div>
-      </div>
+      <!-- Costs -->
+      <label for="gasCapex">Gas Capex (GBP/kW):</label>
+      <input type="number" id="gasCapex" value="800" step="1" />
 
-      <!-- Group: Assumptions -->
-      <div class="group">
-        <h3 class="group-title" onclick="toggleGroup(this)">Assumptions</h3>
-        <div class="group-content">
-          <fieldset>
-            <legend>Costs</legend>
-            <label for="gasCapex">Gas Capex (GBP/kW):</label>
-            <input type="number" id="gasCapex" value="800" step="1" />
+      <label for="solarCapex">Solar Capex (GBP/kW):</label>
+      <input type="number" id="solarCapex" value="450" step="1" />
 
-            <label for="solarCapex">Solar Capex (GBP/kW):</label>
-            <input type="number" id="solarCapex" value="450" step="1" />
+      <label for="batteryCapex">Battery Capex (GBP/kWh):</label>
+      <input type="number" id="batteryCapex" value="200" step="1" />
 
-            <label for="batteryCapex">Battery Capex (GBP/kWh):</label>
-            <input type="number" id="batteryCapex" value="200" step="1" />
-          </fieldset>
+      <label for="gasFixedOM">Gas Fixed O&amp;M (GBP/MW/yr):</label>
+      <input type="number" id="gasFixedOM" value="18000" step="100" />
 
-          <fieldset>
-            <legend>O&amp;M</legend>
-            <label for="gasFixedOM">Gas Fixed O&amp;M (GBP/MW/yr):</label>
-            <input type="number" id="gasFixedOM" value="18000" step="100" />
+      <label for="solarFixedOM">Solar Fixed O&amp;M (GBP/MW/yr):</label>
+      <input type="number" id="solarFixedOM" value="8000" step="100" />
 
-            <label for="solarFixedOM">Solar Fixed O&amp;M (GBP/MW/yr):</label>
-            <input type="number" id="solarFixedOM" value="8000" step="100" />
+      <label for="batteryFixedOM">Battery Fixed O&amp;M (GBP/MW/yr):</label>
+      <input type="number" id="batteryFixedOM" value="6000" step="100" />
 
-            <label for="batteryFixedOM">Battery Fixed O&amp;M (GBP/MW/yr):</label>
-            <input type="number" id="batteryFixedOM" value="6000" step="100" />
+      <label for="gasVarOM">Gas Variable O&amp;M (GBP/MWh):</label>
+      <input type="number" id="gasVarOM" value="4" step="1" />
 
-            <label for="gasVarOM">Gas Variable O&amp;M (GBP/MWh):</label>
-            <input type="number" id="gasVarOM" value="4" step="1" />
+      <label for="gasFuel">Gas Fuel (GBP/MWh):</label>
+      <input type="number" id="gasFuel" value="40" step="1" />
 
-            <label for="gasFuel">Gas Fuel (GBP/MWh):</label>
-            <input type="number" id="gasFuel" value="40" step="1" />
-          </fieldset>
+      <label for="gasEfficiency">Gas Efficiency (%):</label>
+      <input type="number" id="gasEfficiency" value="45" step="1" />
 
-          <fieldset>
-            <legend>Other</legend>
-            <label for="gasEfficiency">Gas Efficiency (%):</label>
-            <input type="number" id="gasEfficiency" value="45" step="1" />
+      <label for="inverterRatio">Inverter Ratio:</label>
+      <input type="number" id="inverterRatio" value="1.2" step="0.1" />
 
-            <label for="inverterRatio">Inverter Clipping Ratio:</label>
-            <input type="number" id="inverterRatio" value="1.2" step="0.1" />
+      <label for="waccFossil">WACC Fossil (%):</label>
+      <input type="number" id="waccFossil" value="8" step="0.1" />
 
-            <label for="waccFossil">WACC Fossil (%):</label>
-            <input type="number" id="waccFossil" value="8" step="0.1" />
+      <label for="waccRenew">WACC Renewables (%):</label>
+      <input type="number" id="waccRenew" value="5" step="0.1" />
 
-            <label for="waccRenew">WACC Solar &amp; Battery (%):</label>
-            <input type="number" id="waccRenew" value="5" step="0.1" />
+      <label for="lifetimeFossil">Lifetime (fossil) (yrs):</label>
+      <input type="number" id="lifetimeFossil" value="25" step="1" />
 
-            <label for="lifetimeFossil">Lifetime (fossil) (years):</label>
-            <input type="number" id="lifetimeFossil" value="25" step="1" />
+      <label for="lifetimeSolar">Lifetime (solar) (yrs):</label>
+      <input type="number" id="lifetimeSolar" value="35" step="1" />
 
-            <label for="lifetimeSolar">Lifetime (solar) (years):</label>
-            <input type="number" id="lifetimeSolar" value="35" step="1" />
-          </fieldset>
-
-          <button type="button" onclick="runModel()">Run Model</button>
-        </div>
-      </div>
+      <button type="button" onclick="runModel()">Run Model</button>
     </div>
 
-    <!-- CONTENT area with charts & summary in a grid -->
+    <!-- CONTENT: multiple chart boxes -->
     <div id="content">
-      <div id="chartSection">
-        <!-- Annual Mix -->
-        <div class="chart-box">
-          <h3>Annual Generation Mix</h3>
-          <canvas id="annualMixChart"></canvas>
-        </div>
-        <!-- Yearly Profile -->
-        <div class="chart-box">
-          <h3>Yearly Profile</h3>
-          <canvas id="yearlyProfileChart"></canvas>
-        </div>
-        <!-- January -->
-        <div class="chart-box">
-          <h3>Selected January Days</h3>
-          <canvas id="janProfileChart"></canvas>
-        </div>
-        <!-- July -->
-        <div class="chart-box">
-          <h3>Selected July Days</h3>
-          <canvas id="julProfileChart"></canvas>
-        </div>
-        <!-- LCOE Breakdown -->
-        <div class="chart-box">
-          <h3>Levelized Cost Breakdown</h3>
-          <canvas id="lcoeBreakdownChart"></canvas>
-        </div>
-        <!-- Summary -->
-        <div class="chart-box">
-          <h3>Summary</h3>
-          <div id="summary"></div>
-        </div>
+      <!-- 1) Annual Mix -->
+      <div class="chart-box">
+        <h3>Annual Mix</h3>
+        <div id="annualMixChart" style="width:100%; height:300px;"></div>
+      </div>
+      <!-- 2) Yearly Profile -->
+      <div class="chart-box">
+        <h3>Yearly Profile</h3>
+        <div id="yearlyProfileChart" style="width:100%; height:300px;"></div>
+      </div>
+      <!-- 3) Jan Chart -->
+      <div class="chart-box">
+        <h3>January (7 days)</h3>
+        <div id="janProfileChart" style="width:100%; height:300px;"></div>
+      </div>
+      <!-- 4) Jul Chart -->
+      <div class="chart-box">
+        <h3>July (7 days)</h3>
+        <div id="julProfileChart" style="width:100%; height:300px;"></div>
+      </div>
+      <!-- 5) LCOE Breakdown -->
+      <div class="chart-box">
+        <h3>LCOE Breakdown</h3>
+        <div id="lcoeBreakdownChart" style="width:100%; height:300px;"></div>
+      </div>
+      <!-- Summary -->
+      <div class="chart-box">
+        <h3>Summary</h3>
+        <div id="summary" style="min-height:150px;"></div>
       </div>
     </div>
   </div>
 
-  <!-- FOOTER -->
   <footer>
-    Created by <strong>Daan Walter</strong>, 2025
+    &copy; 2025 Created by <strong>Daan Walter</strong> - Demo LCOE Calculator
   </footer>
 
-  <!-- Our corrected LCOE logic (model.js) -->
+  <!-- Our main model + Plotly chart logic -->
   <script src="model.js"></script>
 </body>
 </html>
