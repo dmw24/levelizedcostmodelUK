@@ -2,130 +2,180 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LCOE Calculator</title>
+
+  <!-- Include the external CSS -->
   <link rel="stylesheet" href="style.css" />
+
+  <!-- Chart.js + PapaParse + Tippy.js (if you want tooltips) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <script src="https://unpkg.com/@popperjs/core@2"></script>
+  <script src="https://unpkg.com/tippy.js@6"></script>
+  <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale.css"/>
+
+  <script>
+    // Chart.js default font
+    Chart.defaults.font.family = 'Poppins, sans-serif';
+    Chart.defaults.font.size = 15;
+
+    // Collapsible group toggles
+    function toggleGroup(el) {
+      const content = el.nextElementSibling;
+      if (content.style.display === "none" || content.style.display === "") {
+        content.style.display = "block";
+        el.classList.remove("collapsed");
+        el.classList.add("expanded");
+      } else {
+        content.style.display = "none";
+        el.classList.remove("expanded");
+        el.classList.add("collapsed");
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+      // Ensure all group titles are collapsed by default
+      document.querySelectorAll('.group-title').forEach(el => {
+        el.classList.add("collapsed");
+        const content = el.nextElementSibling;
+        content.style.display = "none";
+      });
+      // Initialize Tippy if needed
+      tippy('[data-tippy-content]', {
+        animation: 'scale',
+        theme: 'light-border'
+      });
+    });
+  </script>
 </head>
 <body>
-  <h1>LCOE Calculator</h1>
+  <!-- HEADER -->
+  <header class="container">
+    <h1>LCOE Calculator</h1>
+    <p class="disclaimer">
+      This is a high-level LCOE model. All numbers are approximate and for demonstration only.
+    </p>
+  </header>
 
-  <!-- === Input Panel === -->
-  <section id="inputs">
-    <h2>System Configuration</h2>
-    <div class="input-group">
-      <label for="solarCap">Solar Capacity (GW):</label>
-      <input type="number" id="solarCap" value="6" step="0.1" />
-    </div>
-    <div class="input-group">
-      <label for="batteryCap">Battery Capacity (GWh):</label>
-      <input type="number" id="batteryCap" value="10" step="1" />
+  <!-- MAIN WRAPPER -->
+  <div class="container sim-container">
+    <!-- SIDEBAR (Inputs) -->
+    <div id="sidebar">
+      <h2>Model Parameters</h2>
+
+      <!-- Group: System Configuration -->
+      <div class="group">
+        <h3 class="group-title" onclick="toggleGroup(this)">System Configuration</h3>
+        <div class="group-content">
+          <fieldset>
+            <legend>Capacity</legend>
+            <label for="solarCap" data-tippy-content="Solar capacity in GW">Solar Capacity (GW):</label>
+            <input type="number" id="solarCap" value="6" step="0.1" />
+
+            <label for="batteryCap" data-tippy-content="Battery capacity in GWh">Battery Capacity (GWh):</label>
+            <input type="number" id="batteryCap" value="10" step="1" />
+          </fieldset>
+        </div>
+      </div>
+
+      <!-- Group: Assumptions -->
+      <div class="group">
+        <h3 class="group-title" onclick="toggleGroup(this)">Assumptions</h3>
+        <div class="group-content">
+          <fieldset>
+            <legend>Costs</legend>
+            <label for="gasCapex">Gas Capex (GBP/kW):</label>
+            <input type="number" id="gasCapex" value="800" step="1" />
+
+            <label for="solarCapex">Solar Capex (GBP/kW):</label>
+            <input type="number" id="solarCapex" value="450" step="1" />
+
+            <label for="batteryCapex">Battery Capex (GBP/kWh):</label>
+            <input type="number" id="batteryCapex" value="200" step="1" />
+          </fieldset>
+
+          <fieldset>
+            <legend>O&amp;M</legend>
+            <label for="gasFixedOM">Gas Fixed O&amp;M (GBP/MW/yr):</label>
+            <input type="number" id="gasFixedOM" value="18000" step="100" />
+
+            <label for="solarFixedOM">Solar Fixed O&amp;M (GBP/MW/yr):</label>
+            <input type="number" id="solarFixedOM" value="8000" step="100" />
+
+            <label for="batteryFixedOM">Battery Fixed O&amp;M (GBP/MW/yr):</label>
+            <input type="number" id="batteryFixedOM" value="6000" step="100" />
+
+            <label for="gasVarOM">Gas Variable O&amp;M (GBP/MWh):</label>
+            <input type="number" id="gasVarOM" value="4" step="1" />
+
+            <label for="gasFuel">Gas Fuel (GBP/MWh):</label>
+            <input type="number" id="gasFuel" value="40" step="1" />
+          </fieldset>
+
+          <fieldset>
+            <legend>Other</legend>
+            <label for="gasEfficiency">Gas Efficiency (%):</label>
+            <input type="number" id="gasEfficiency" value="45" step="1" />
+
+            <label for="inverterRatio">Inverter Clipping Ratio:</label>
+            <input type="number" id="inverterRatio" value="1.2" step="0.1" />
+
+            <label for="waccFossil">WACC Fossil (%):</label>
+            <input type="number" id="waccFossil" value="8" step="0.1" />
+
+            <label for="waccRenew">WACC Solar &amp; Battery (%):</label>
+            <input type="number" id="waccRenew" value="5" step="0.1" />
+
+            <label for="lifetimeFossil">Lifetime (fossil) (years):</label>
+            <input type="number" id="lifetimeFossil" value="25" step="1" />
+
+            <label for="lifetimeSolar">Lifetime (solar) (years):</label>
+            <input type="number" id="lifetimeSolar" value="35" step="1" />
+          </fieldset>
+
+          <button type="button" onclick="runModel()">Run Model</button>
+        </div>
+      </div>
     </div>
 
-    <h2>Assumptions</h2>
-    <div class="input-group">
-      <label for="gasCapex">Gas Capex (GBP/kW):</label>
-      <input type="number" id="gasCapex" value="800" step="1" />
-    </div>
-    <div class="input-group">
-      <label for="solarCapex">Solar Capex (GBP/kW):</label>
-      <input type="number" id="solarCapex" value="450" step="1" />
-    </div>
-    <div class="input-group">
-      <label for="batteryCapex">Battery Capex (GBP/kWh):</label>
-      <input type="number" id="batteryCapex" value="200" step="1" />
-    </div>
-    <div class="input-group">
-      <label for="gasFixedOM">Gas Fixed O&M (GBP/MW/yr):</label>
-      <input type="number" id="gasFixedOM" value="18000" step="100" />
-    </div>
-    <div class="input-group">
-      <label for="solarFixedOM">Solar Fixed O&M (GBP/MW/yr):</label>
-      <input type="number" id="solarFixedOM" value="8000" step="100" />
-    </div>
-    <div class="input-group">
-      <label for="batteryFixedOM">Battery Fixed O&M (GBP/MW/yr):</label>
-      <input type="number" id="batteryFixedOM" value="6000" step="100" />
-    </div>
-    <div class="input-group">
-      <label for="gasVarOM">Gas Variable O&M (GBP/MWh):</label>
-      <input type="number" id="gasVarOM" value="4" step="1" />
-    </div>
-    <div class="input-group">
-      <label for="gasFuel">Gas Fuel (GBP/MWh):</label>
-      <input type="number" id="gasFuel" value="40" step="1" />
-    </div>
-    <div class="input-group">
-      <label for="gasEfficiency">Gas Efficiency (%):</label>
-      <input type="number" id="gasEfficiency" value="45" step="1" />
-    </div>
-    <div class="input-group">
-      <label for="inverterRatio">Inverter Clipping Ratio:</label>
-      <input type="number" id="inverterRatio" value="1.2" step="0.1" />
-    </div>
-    <div class="input-group">
-      <label for="waccFossil">WACC Fossil (%):</label>
-      <input type="number" id="waccFossil" value="8" step="0.1" />
-    </div>
-    <div class="input-group">
-      <label for="waccRenew">WACC Solar & Battery (%):</label>
-      <input type="number" id="waccRenew" value="5" step="0.1" />
-    </div>
-    <div class="input-group">
-      <label for="lifetimeFossil">Lifetime (fossil) (years):</label>
-      <input type="number" id="lifetimeFossil" value="25" step="1" />
-    </div>
-    <div class="input-group">
-      <label for="lifetimeSolar">Lifetime (solar) (years):</label>
-      <input type="number" id="lifetimeSolar" value="35" step="1" />
-    </div>
+    <!-- CONTENT AREA (Charts & Results) -->
+    <div id="content">
+      <!-- We can keep the result displays here -->
+      <div id="chartControls">
+        <label>Outputs:</label>
+        <!-- Nothing fancy, just a label to show we have some results below -->
+      </div>
 
-    <button onclick="runModel()">Run Model</button>
-  </section>
-
-  <!-- === Output Dashboard === -->
-  <section id="results">
-    <h2>Results</h2>
-
-    <!-- Annual Mix -->
-    <div class="chart-row">
-      <div>
+      <!-- We place each chart in its own container -->
+      <div id="chartSection">
         <h3>Annual Generation Mix</h3>
         <canvas id="annualMixChart"></canvas>
-      </div>
-      <div>
+
         <h3>Yearly Profile</h3>
         <canvas id="yearlyProfileChart"></canvas>
-      </div>
-    </div>
 
-    <!-- Jan / Jul -->
-    <div class="chart-row">
-      <div>
         <h3>Selected January Days</h3>
         <canvas id="janProfileChart"></canvas>
-      </div>
-      <div>
+
         <h3>Selected July Days</h3>
         <canvas id="julProfileChart"></canvas>
-      </div>
-    </div>
 
-    <!-- LCOE breakdown & summary -->
-    <div class="chart-row">
-      <div>
         <h3>Levelized Cost Breakdown (Stacked)</h3>
         <canvas id="lcoeBreakdownChart"></canvas>
-      </div>
-      <div>
+
         <h3>Summary</h3>
         <div id="summary"></div>
       </div>
     </div>
-  </section>
+  </div>
 
-  <!-- Load external libraries (Chart.js + PapaParse) and your model code -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <!-- FOOTER -->
+  <footer>
+    Created by <strong>Daan Walter</strong>, 2025
+  </footer>
+
+  <!-- Our LCOE logic -->
   <script src="model.js"></script>
 </body>
 </html>
-
