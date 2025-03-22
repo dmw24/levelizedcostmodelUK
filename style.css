@@ -95,14 +95,6 @@ header.container p.disclaimer {
   margin: 0 0 1rem 0;
 }
 
-/* H2 styling inside sidebar or content */
-h2 {
-  margin: 20px 0;
-  font-size: 2.5em;
-  font-weight: 500;
-  line-height: 1.2em;
-}
-
 /* Container around everything */
 .container {
   width: 100%;
@@ -117,7 +109,8 @@ h2 {
 /* The main layout: sidebar + content */
 .sim-container {
   display: flex;
-  height: calc(100vh - 150px);
+  /* Let content scroll if needed, so it doesn't overflow off screen */
+  height: auto;
   gap: 20px;
 }
 
@@ -144,47 +137,56 @@ h2 {
   border-radius: 8px;
 }
 
-/* Chart controls row at top of content */
-#chartControls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 1rem;
+/* Chart grid */
+#chartSection {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 20px;
 }
-#chartControls label {
-  margin: 0;
+
+/* Each chart box or summary box */
+.chart-box {
+  background: var(--white);
+  border: 1px solid var(--grey-blue);
+  border-radius: 8px;
+  padding: 1rem;
+}
+.chart-box h3 {
+  margin-top: 0;
+}
+#summary {
+  min-height: 150px;
+}
+
+/* Fieldset / form inputs */
+fieldset {
+  margin-bottom: 20px;
+}
+fieldset legend {
+  border-left: 4px solid var(--color_theme_accent);
+  padding-left: 8px;
+  font-size: 1.1em;
+  margin-bottom: 10px;
+}
+fieldset label {
+  border-left: 2px solid var(--grey-blue);
+  padding-left: 5px;
+  margin-bottom: 5px;
+  display: block;
   font-weight: 600;
-  white-space: nowrap;
 }
-#chartControls select {
-  min-width: 150px;
+input[type="number"],
+select {
+  width: 100%;
   padding: 0.4rem;
   border: 1px solid var(--grey-blue);
   border-radius: 4px;
+  font-size: 0.95rem;
   background: var(--white);
   color: var(--slate-blue);
 }
-#chartControls button {
-  padding: 8px 15px;
-  font-size: 0.9em;
-  border: none;
-  border-radius: 4px;
-  background-color: var(--color_theme_bg_pop);
-  color: var(--slate-blue);
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-#chartControls button:hover {
-  background-color: var(--background_pop_darken);
-}
 
-/* Chart section container */
-#chartSection {
-  flex-grow: 1;
-  min-height: 600px;
-}
-
-/* Group toggles in the sidebar */
+/* Collapsible group toggles */
 #sidebar h2 {
   margin-top: 0;
   margin-bottom: 1rem;
@@ -226,36 +228,42 @@ h2 {
 .group {
   margin-bottom: 20px;
 }
-fieldset {
-  margin-bottom: 20px;
-}
-fieldset legend {
-  border-left: 4px solid var(--color_theme_accent);
-  padding-left: 8px;
-  font-size: 1.1em;
-  margin-bottom: 10px;
-}
-fieldset label {
-  border-left: 2px solid var(--grey-blue);
-  padding-left: 5px;
-  margin-bottom: 5px;
-  display: block;
-  font-weight: 600;
-}
 
-/* Inputs */
-input[type="number"],
-select {
-  width: 100%;
+/* Chart controls (optional) */
+#chartControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 1rem;
+}
+#chartControls label {
+  margin: 0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+#chartControls select {
+  min-width: 150px;
   padding: 0.4rem;
   border: 1px solid var(--grey-blue);
   border-radius: 4px;
-  font-size: 0.95rem;
   background: var(--white);
   color: var(--slate-blue);
 }
+#chartControls button {
+  padding: 8px 15px;
+  font-size: 0.9em;
+  border: none;
+  border-radius: 4px;
+  background-color: var(--color_theme_bg_pop);
+  color: var(--slate-blue);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+#chartControls button:hover {
+  background-color: var(--background_pop_darken);
+}
 
-/* Responsive tweak for narrow screens */
+/* Responsive tweak for narrower screens */
 @media screen and (max-width: 767px) {
   .sim-container {
     flex-direction: column;
