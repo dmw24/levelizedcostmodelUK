@@ -2,15 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>LCOE Calculator (Plotly Edition)</title>
+  <title>Levelized cost model</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Plotly.js for interactive charts (zoom, pan, etc.) -->
-  <script src="https://cdn.plot.ly/plotly-2.16.1.min.js"></script>
-  <!-- PapaParse for CSV loading -->
+  <!-- Chart.js (original library) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <!-- chartjs-plugin-zoom for zoom/pan -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <!-- PapaParse for CSV -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
 
-  <!-- Minimal styling for two-column layout -->
+  <!-- Minimal CSS to lay out charts in a 2x3 grid + sidebar -->
   <style>
     body {
       margin: 0;
@@ -33,20 +35,22 @@
       font-size: 0.85em;
       color: #666;
     }
+
     .container {
       display: flex;
       gap: 20px;
+      max-width: 1400px;
       margin: 0 auto;
-      max-width: 1200px;
       padding: 1rem;
     }
-    /* Sidebar with inputs */
+    /* Sidebar for inputs */
     #sidebar {
-      width: 300px;
+      width: 320px;
       background: #fff;
       padding: 1rem;
       border: 1px solid #ccc;
       border-radius: 4px;
+      flex-shrink: 0;
     }
     #sidebar h2 {
       margin-top: 0;
@@ -73,28 +77,42 @@
     button:hover {
       background: #005dc1;
     }
-    /* Content area (charts) */
-    #content {
+
+    /* Charts layout in a 2x3 grid */
+    #charts-container {
       flex: 1;
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: auto auto auto; /* 3 rows of charts */
       gap: 20px;
     }
-    /* Each chart container */
     .chart-box {
       background: #fff;
       border: 1px solid #ccc;
       border-radius: 4px;
       padding: 0.5rem;
-      flex: 1 1 400px; /* flexible item min 400px wide */
-      min-width: 350px;
+      display: flex;
+      flex-direction: column;
+      min-height: 350px;
     }
     .chart-box h3 {
-      margin-top: 0;
+      margin: 0 0 0.5rem;
       font-size: 1.1em;
-      margin-bottom: 0.5rem;
     }
-    /* Footer */
+    .chart-canvas {
+      flex: 1;
+      position: relative;
+      min-height: 200px;
+    }
+    /* The summary box can share the same style */
+    #summary {
+      padding: 0.5rem;
+      background: #f9f9f9;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      min-height: 150px;
+    }
+
     footer {
       text-align: center;
       padding: 0.5rem;
@@ -104,32 +122,36 @@
       font-size: 0.8em;
       color: #666;
     }
-    @media screen and (max-width: 768px) {
+
+    @media screen and (max-width: 900px) {
       .container { flex-direction: column; }
       #sidebar { width: 100%; margin-bottom: 1rem; }
+      #charts-container {
+        grid-template-columns: 1fr; /* single column if very narrow screen */
+      }
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>LCOE Calculator (Plotly)</h1>
+    <h1>LCOE Calculator (Chart.js + Zoom)</h1>
     <p class="disclaimer">
-      A high-level LCOE model using Plotly for interactive charts. Numbers are approximate and for demo only.
+      This is a high-level LCOE model with a horizontal bar chart for annual mix, 
+      plus stacked bar charts for profiles, using chartjs-plugin-zoom for interactive zoom.
     </p>
   </header>
 
   <div class="container">
-    <!-- SIDEBAR: user inputs -->
+    <!-- SIDEBAR with inputs -->
     <div id="sidebar">
       <h2>Model Inputs</h2>
-      <!-- System capacity -->
+
       <label for="solarCap">Solar Capacity (GW):</label>
       <input type="number" id="solarCap" value="6" step="0.1" />
 
       <label for="batteryCap">Battery Capacity (GWh):</label>
       <input type="number" id="batteryCap" value="10" step="1" />
 
-      <!-- Costs -->
       <label for="gasCapex">Gas Capex (GBP/kW):</label>
       <input type="number" id="gasCapex" value="800" step="1" />
 
@@ -172,49 +194,59 @@
       <label for="lifetimeSolar">Lifetime (solar) (yrs):</label>
       <input type="number" id="lifetimeSolar" value="35" step="1" />
 
-      <button type="button" onclick="runModel()">Run Model</button>
+      <button onclick="runModel()">Run Model</button>
     </div>
 
-    <!-- CONTENT: multiple chart boxes -->
-    <div id="content">
-      <!-- 1) Annual Mix -->
+    <!-- CHARTS in a 2x3 grid -->
+    <div id="charts-container">
+      <!-- 1) Annual Mix (horizontal bar) -->
       <div class="chart-box">
-        <h3>Annual Mix</h3>
-        <div id="annualMixChart" style="width:100%; height:300px;"></div>
+        <h3>Annual Generation Mix</h3>
+        <div class="chart-canvas">
+          <canvas id="annualMixChart"></canvas>
+        </div>
       </div>
       <!-- 2) Yearly Profile -->
       <div class="chart-box">
         <h3>Yearly Profile</h3>
-        <div id="yearlyProfileChart" style="width:100%; height:300px;"></div>
+        <div class="chart-canvas">
+          <canvas id="yearlyProfileChart"></canvas>
+        </div>
       </div>
-      <!-- 3) Jan Chart -->
+      <!-- 3) January (7 days) -->
       <div class="chart-box">
-        <h3>January (7 days)</h3>
-        <div id="janProfileChart" style="width:100%; height:300px;"></div>
+        <h3>Selected January Days</h3>
+        <div class="chart-canvas">
+          <canvas id="janProfileChart"></canvas>
+        </div>
       </div>
-      <!-- 4) Jul Chart -->
+      <!-- 4) July (7 days) -->
       <div class="chart-box">
-        <h3>July (7 days)</h3>
-        <div id="julProfileChart" style="width:100%; height:300px;"></div>
+        <h3>Selected July Days</h3>
+        <div class="chart-canvas">
+          <canvas id="julProfileChart"></canvas>
+        </div>
       </div>
       <!-- 5) LCOE Breakdown -->
       <div class="chart-box">
-        <h3>LCOE Breakdown</h3>
-        <div id="lcoeBreakdownChart" style="width:100%; height:300px;"></div>
+        <h3>Levelized Cost Breakdown</h3>
+        <div class="chart-canvas">
+          <canvas id="lcoeBreakdownChart"></canvas>
+        </div>
       </div>
-      <!-- Summary -->
+      <!-- Summary box -->
       <div class="chart-box">
         <h3>Summary</h3>
-        <div id="summary" style="min-height:150px;"></div>
+        <div id="summary"></div>
       </div>
     </div>
   </div>
 
   <footer>
-    &copy; 2025 Created by <strong>Daan Walter</strong> - Demo LCOE Calculator
+    &copy; 2025 Created by <strong>Daan Walter</strong> - LCOE Calculator (Chart.js + Zoom)
   </footer>
 
-  <!-- Our main model + Plotly chart logic -->
+  <!-- Our main logic (model.js) -->
   <script src="model.js"></script>
 </body>
 </html>
