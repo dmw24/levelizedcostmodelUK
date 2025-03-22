@@ -4,13 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>LCOE Calculator</title>
-
   <link rel="stylesheet" href="style.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/@popperjs/core@2"></script>
   <script src="https://unpkg.com/tippy.js@6"></script>
   <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale.css"/>
-
   <script>
     Chart.defaults.font.family = 'Poppins, sans-serif';
     Chart.defaults.font.size = 15;
@@ -20,7 +18,8 @@
   <header class="container">
     <h1>LCOE Calculator</h1>
     <p class="disclaimer">
-      No double-counting of solar that goes to battery. This model uses a simple placeholder solar profile.
+      Model that does not double-count solar going into battery, plus gas efficiency. 
+      Simple placeholder solar logic (hours 7..19).
     </p>
   </header>
 
@@ -35,7 +34,6 @@
             <legend>Capacities</legend>
             <label for="solarCap">Solar Capacity (GW):</label>
             <input type="number" id="solarCap" value="6" step="0.1"/>
-
             <label for="batteryCap">Battery Capacity (GWh):</label>
             <input type="number" id="batteryCap" value="10" step="1"/>
           </fieldset>
@@ -49,10 +47,8 @@
             <legend>Costs</legend>
             <label for="gasCapex">Gas Capex (GBP/kW):</label>
             <input type="number" id="gasCapex" value="800" step="1"/>
-
             <label for="solarCapex">Solar Capex (GBP/kW):</label>
             <input type="number" id="solarCapex" value="450" step="1"/>
-
             <label for="batteryCapex">Battery Capex (GBP/kWh):</label>
             <input type="number" id="batteryCapex" value="200" step="1"/>
           </fieldset>
@@ -61,16 +57,12 @@
             <legend>O&amp;M</legend>
             <label for="gasFixedOM">Gas Fixed O&amp;M (GBP/MW/yr):</label>
             <input type="number" id="gasFixedOM" value="18000" step="100"/>
-
             <label for="solarFixedOM">Solar Fixed O&amp;M (GBP/MW/yr):</label>
             <input type="number" id="solarFixedOM" value="8000" step="100"/>
-
             <label for="batteryFixedOM">Battery Fixed O&amp;M (GBP/MW/yr):</label>
             <input type="number" id="batteryFixedOM" value="6000" step="100"/>
-
             <label for="gasVarOM">Gas Variable O&amp;M (GBP/MWh):</label>
             <input type="number" id="gasVarOM" value="4" step="1"/>
-
             <label for="gasFuel">Gas Fuel (GBP/MWh_fuel):</label>
             <input type="number" id="gasFuel" value="40" step="1"/>
           </fieldset>
@@ -79,19 +71,14 @@
             <legend>Other</legend>
             <label for="gasEfficiency">Gas Efficiency (%):</label>
             <input type="number" id="gasEfficiency" value="45" step="1"/>
-
             <label for="inverterRatio">Inverter Ratio:</label>
             <input type="number" id="inverterRatio" value="1.2" step="0.1"/>
-
             <label for="waccFossil">WACC Fossil (%):</label>
             <input type="number" id="waccFossil" value="8" step="0.1"/>
-
             <label for="waccRenew">WACC Renew (%):</label>
             <input type="number" id="waccRenew" value="5" step="0.1"/>
-
             <label for="lifetimeFossil">Lifetime (fossil) (yrs):</label>
             <input type="number" id="lifetimeFossil" value="25" step="1"/>
-
             <label for="lifetimeSolar">Lifetime (solar) (yrs):</label>
             <input type="number" id="lifetimeSolar" value="35" step="1"/>
           </fieldset>
@@ -157,9 +144,9 @@
       }
     }
     document.addEventListener("DOMContentLoaded", ()=>{
-      document.querySelectorAll('.group-title').forEach(g=>{
-        g.classList.add("collapsed");
-        g.nextElementSibling.style.display="none";
+      document.querySelectorAll('.group-title').forEach(el=>{
+        el.classList.add("collapsed");
+        el.nextElementSibling.style.display="none";
       });
       tippy('[data-tippy-content]',{ animation:'scale', theme:'light-border' });
     });
