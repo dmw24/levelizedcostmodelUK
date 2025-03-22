@@ -1,55 +1,12 @@
 :root {
-  /* Original theme variables */
+  /* Theme variables from your snippet + minor tweaks */
   --slate-blue: #192238;
   --off-white: #eceff5;
   --white: #fff;
-  --mid-slate-blue: #414f6f;
-  --jet-black: #000;
-  --ember-green: #13ce74;
-  --light-ember-green: #1de987;
   --grey-blue: #d6dbe9;
   --dark-grey: #959aa7;
-  --dark-grey-blue: #626e88;
-  --transparent: #fff0;
-  --ash-blue: #dee6ef;
-
-  /* New theme variables from provided code */
-  --color_theme_bg_pop: #13ce74;
-  --background_pop: #13ce74;
-  --color_theme_bg_web: #ffffff;
-  --cover_bg_color: #ffffff;
-  --background_pop_darken: #11b767;
-  --print_on_pop: #ffffff;
-  --color_theme_bg_pop_darken: #11b767;
-  --color_theme_print_on_pop: #ffffff;
-  --border_subtle: rgba(204, 204, 204, 0.5);
-  --background_subtle: rgba(220, 248, 234, 0.4);
-  --print_pop: #13ce74;
   --color_theme_accent: #13ce74;
-  --cover_print_primary: #363737;
-  --cover_print_secondary: #757575;
-  --cover_print_tertiary: #b6b6b6;
-  --cover_border_color: #13ce74;
-  --font_family_body_preset: 'SF Pro Display', -apple-system, system-ui, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
-  --font_weight_body_preset: 400;
-  --font_preset_body: sans;
-  --web_bg_color: #ffffff;
-  --background_contrast_1: #f0f0f0;
-  --color_theme_bg_contrast_1: #f0f0f0;
-  --background_contrast_2: #dddddd;
-  --color_theme_bg_contrast_2: #dddddd;
-  --background_contrast_3: #b7b7b7;
-  --color_theme_bg_contrast_3: #b7b7b7;
-  --background_contrast_4: #929292;
-  --color_theme_bg_contrast_4: #929292;
-  --background_contrast_5: #515151;
-  --color_theme_bg_contrast_5: #515151;
-  --color_theme_detail: #e6e6e6;
-  --background_contrast_pop: rgba(19, 206, 116, 0.4);
-  --color_theme_bg_contrast_pop: rgba(19, 206, 116, 0.4);
-  --input_background: #ffffff;
-  --cover_input_background: #ffffff;
-  --tooltip_background: #191919;
+  --background_pop_darken: #11b767;
 }
 
 *,
@@ -107,11 +64,12 @@ header.container p.disclaimer {
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 }
 
+/* The main layout: sidebar + content */
 .sim-container {
   display: flex;
-  /* If content is cut off, remove or comment out the next line or add overflow-y */
-  height: calc(100vh - 150px);
   gap: 20px;
+  /* Let content scroll if needed, so it doesn't overflow off screen */
+  height: auto;
 }
 
 /* SIDEBAR */
@@ -137,7 +95,72 @@ header.container p.disclaimer {
   border-radius: 8px;
 }
 
-/* Collapsible group styling */
+/* Chart grid */
+#chartSection {
+  display: grid;
+  /* 350px min to ensure a reasonable size, 1fr to auto-fill columns */
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 20px;
+}
+
+/* Each chart box or summary box */
+.chart-box {
+  background: var(--white);
+  border: 1px solid var(--grey-blue);
+  border-radius: 8px;
+  padding: 1rem;
+}
+.chart-box h3 {
+  margin-top: 0;
+}
+#summary {
+  min-height: 150px;
+}
+
+/* Force charts to be ~300px high so they're not too big nor too small */
+.chart-box canvas {
+  display: block;
+  width: 100%;
+  height: 300px !important;
+}
+
+/* Fieldset / form inputs */
+fieldset {
+  margin-bottom: 20px;
+}
+fieldset legend {
+  border-left: 4px solid var(--color_theme_accent);
+  padding-left: 8px;
+  font-size: 1.1em;
+  margin-bottom: 10px;
+}
+fieldset label {
+  border-left: 2px solid var(--grey-blue);
+  padding-left: 5px;
+  margin-bottom: 5px;
+  display: block;
+  font-weight: 600;
+}
+input[type="number"],
+select {
+  width: 100%;
+  padding: 0.4rem;
+  border: 1px solid var(--grey-blue);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  background: var(--white);
+  color: var(--slate-blue);
+}
+
+/* Collapsible group toggles */
+#sidebar h2 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.8em;
+  font-weight: 500;
+  border-bottom: 1px solid var(--grey-blue);
+  padding-bottom: 0.5rem;
+}
 .group-title {
   margin: 15px 0 10px 0;
   font-size: 1.5em;
@@ -172,59 +195,7 @@ header.container p.disclaimer {
   margin-bottom: 20px;
 }
 
-fieldset {
-  margin-bottom: 20px;
-}
-fieldset legend {
-  border-left: 4px solid var(--color_theme_accent);
-  padding-left: 8px;
-  font-size: 1.1em;
-  margin-bottom: 10px;
-}
-fieldset label {
-  border-left: 2px solid var(--grey-blue);
-  padding-left: 5px;
-  margin-bottom: 5px;
-  display: block;
-  font-weight: 600;
-}
-input[type="number"],
-select {
-  width: 100%;
-  padding: 0.4rem;
-  border: 1px solid var(--grey-blue);
-  border-radius: 4px;
-  font-size: 0.95rem;
-  background: var(--white);
-  color: var(--slate-blue);
-}
-
-/* Chart boxes */
-.chart-box {
-  background: var(--white);
-  border: 1px solid var(--grey-blue);
-  border-radius: 6px;
-  margin-bottom: 20px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-}
-.chart-box h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1.2em;
-}
-.chart-container {
-  flex: 1;
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-.chart-container canvas {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* Responsive tweak */
+/* Responsive tweak for narrower screens */
 @media screen and (max-width: 767px) {
   .sim-container {
     flex-direction: column;
@@ -237,19 +208,9 @@ select {
   }
 }
 
-/* Footer */
+/* FOOTER */
 footer {
   position: fixed;
   bottom: 0;
   left: 0;
-  width: 100%;
-  background: var(--white);
-  border-top: 1px solid #000;
-  text-align: center;
-  padding: 5px;
-  font-size: 0.8em;
-  color: var(--dark-grey);
-}
-footer strong {
-  font-weight: bold;
-}
+  width:
