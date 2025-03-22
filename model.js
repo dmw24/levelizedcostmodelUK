@@ -1,11 +1,16 @@
 let annualMixChart, lcoeChart, yearlyProfileChart, janProfileChart, julProfileChart;
 
+document.addEventListener("DOMContentLoaded",()=>{
+  const btn=document.getElementById("updateBtn");
+  if(btn) btn.addEventListener("click", runModel);
+});
+
 function runModel(){
   const solarCapGW = parseFloat(document.getElementById("solarCap").value)||0;
   const batteryCapGWh= parseFloat(document.getElementById("batteryCap").value)||0;
 
-  const gasCapex = parseFloat(document.getElementById("gasCapex").value)||800;
-  const solarCapex = parseFloat(document.getElementById("solarCapex").value)||450;
+  const gasCapex= parseFloat(document.getElementById("gasCapex").value)||800;
+  const solarCapex= parseFloat(document.getElementById("solarCapex").value)||450;
   const batteryCapex= parseFloat(document.getElementById("batteryCapex").value)||200;
 
   const gasFixedOM= parseFloat(document.getElementById("gasFixedOM").value)||18000;
@@ -13,71 +18,68 @@ function runModel(){
   const batteryFixedOM= parseFloat(document.getElementById("batteryFixedOM").value)||6000;
 
   const gasVarOM= parseFloat(document.getElementById("gasVarOM").value)||4;
-  const gasFuel = parseFloat(document.getElementById("gasFuel").value)||40;
-  const gasEff  = (parseFloat(document.getElementById("gasEfficiency").value)||45)/100;
+  const gasFuel= parseFloat(document.getElementById("gasFuel").value)||40;
+  const gasEff= (parseFloat(document.getElementById("gasEfficiency").value)||45)/100;
 
   const inverterRatio= parseFloat(document.getElementById("inverterRatio").value)||1.2;
   const waccFossil= (parseFloat(document.getElementById("waccFossil").value)||8)/100;
   const waccRenew= (parseFloat(document.getElementById("waccRenew").value)||5)/100;
 
   const lifetimeFossil= parseFloat(document.getElementById("lifetimeFossil").value)||25;
-  const lifetimeSolar = parseFloat(document.getElementById("lifetimeSolar").value)||35;
+  const lifetimeSolar= parseFloat(document.getElementById("lifetimeSolar").value)||35;
 
-  const solarCapMW = solarCapGW*1000;
+  const solarCapMW= solarCapGW*1000;
   const batteryCapMWh= batteryCapGWh*1000;
 
   const HOURS=8760;
   let batterySoC=0;
 
-  const chartSolarFlow= new Array(HOURS).fill(0);
-  const usedSolarFlow= new Array(HOURS).fill(0);
-  const batteryOutFlow= new Array(HOURS).fill(0);
-  const batteryInFlow= new Array(HOURS).fill(0);
-  const gasFlow= new Array(HOURS).fill(0);
+  const solarUsed= new Array(HOURS).fill(0);
+  const batteryOut= new Array(HOURS).fill(0);
+  const gasOut= new Array(HOURS).fill(0);
+  const batteryIn= new Array(HOURS).fill(0);
+  const allSolar= new Array(HOURS).fill(0);
 
   const maxSolarAC= solarCapMW/ inverterRatio;
 
   for(let h=0; h<HOURS; h++){
-    let demand=1000; 
-    // placeholder real-ish approach: day hours => capacity factor 0.6, else 0
+    let demand=1000;
     const hour= h%24;
     let rawSolar=0;
-    if(hour>=7 && hour<19) rawSolar= solarCapMW*0.6;
-    const clippedSolar= Math.min(rawSolar, maxSolarAC);
+    if(hour>=7 && hour<19) rawSolar= solarCapMW*0.6; // placeholder
+    const clipped= Math.min(rawSolar, maxSolarAC);
+    allSolar[h]= clipped;
 
-    chartSolarFlow[h]= clippedSolar;
-
-    const used= Math.min(clippedSolar, demand);
-    usedSolarFlow[h]= used;
+    const used= Math.min(clipped, demand);
+    solarUsed[h]= used;
     demand-= used;
 
-    let leftover= clippedSolar- used;
+    let leftover= clipped- used;
     if(leftover>0 && batterySoC< batteryCapMWh){
       const space= batteryCapMWh- batterySoC;
       const charge= Math.min(leftover, space);
       batterySoC+= charge;
       leftover-= charge;
-      batteryInFlow[h]= -charge; 
+      batteryIn[h]= -charge;
     }
-
     if(demand>0 && batterySoC>0){
       const discharge= Math.min(demand, batterySoC);
       batterySoC-= discharge;
-      batteryOutFlow[h]= discharge;
+      batteryOut[h]= discharge;
       demand-= discharge;
     }
-
     if(demand>0){
-      gasFlow[h]= demand;
+      gasOut[h]= demand;
       demand=0;
     }
   }
 
-  const totalSolarUsed= sum(usedSolarFlow);
-  const totalBattery= sum(batteryOutFlow);
-  const totalGas= sum(gasFlow);
+  const totalSolarUsed= sum(solarUsed);
+  const totalBattery= sum(batteryOut);
+  const totalGas= sum(gasOut);
   const totalDemand= HOURS*1000;
 
+  // LCOE
   const gasCapMW=1000;
   const gasCapexTotal= gasCapMW*1000* gasCapex;
   const crfGas= CRF(waccFossil, lifetimeFossil);
@@ -107,8 +109,8 @@ function runModel(){
   const totalAnnualCost= gasAnnualCost+ solarAnnualCost+ batteryAnnualCost;
   const systemLcoe= totalAnnualCost/ totalDemand;
 
-  updateAnnualMixChart(totalGas, totalSolarUsed, totalBattery);
-  updateLcoeChart(
+  renderMixChart(totalGas, totalSolarUsed, totalBattery);
+  renderLcoeChart(
     (gasAnnualCapex/ totalGas)||0,
     ((gasAnnualFixedOM+ gasFuelCost+ gasVarCost)/ totalGas)||0,
     (solarAnnualCapex/ totalSolarUsed)||0,
@@ -117,21 +119,20 @@ function runModel(){
     (batteryAnnualFixedOM/ totalBattery)||0,
     systemLcoe
   );
-
-  updateYearChart(chartSolarFlow, batteryInFlow, batteryOutFlow, gasFlow);
-  updateJanChart(chartSolarFlow, batteryInFlow, batteryOutFlow, gasFlow);
-  updateJulChart(chartSolarFlow, batteryInFlow, batteryOutFlow, gasFlow);
+  renderYearChart(allSolar, batteryIn, batteryOut, gasOut);
+  renderJanChart(allSolar, batteryIn, batteryOut, gasOut);
+  renderJulChart(allSolar, batteryIn, batteryOut, gasOut);
 }
 
 function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
-function CRF(r, n){
+function CRF(r,n){
   if(r===0)return 1/n;
   const top= r* Math.pow(1+r,n);
   const bot= Math.pow(1+r,n)-1;
   return top/bot;
 }
 
-function updateAnnualMixChart(gasMWh, solarMWh, batteryMWh){
+function renderMixChart(gasMWh, solarMWh, batteryMWh){
   if(annualMixChart) annualMixChart.destroy();
   const ctx= document.getElementById("annualMixChart").getContext("2d");
   annualMixChart= new Chart(ctx,{
@@ -139,31 +140,16 @@ function updateAnnualMixChart(gasMWh, solarMWh, batteryMWh){
     data:{
       labels:["Generation Mix"],
       datasets:[
-        {
-          label:"Gas",
-          data:[gasMWh],
-          backgroundColor:"#f45d5d",
-          stack:"mix"
-        },
-        {
-          label:"Solar",
-          data:[solarMWh],
-          backgroundColor:"#13ce74",
-          stack:"mix"
-        },
-        {
-          label:"Battery",
-          data:[batteryMWh],
-          backgroundColor:"#4db6e4",
-          stack:"mix"
-        }
+        { label:"Gas", data:[gasMWh], backgroundColor:"#f45d5d", stack:"mix" },
+        { label:"Solar", data:[solarMWh], backgroundColor:"#13ce74", stack:"mix" },
+        { label:"Battery", data:[batteryMWh], backgroundColor:"#4db6e4", stack:"mix" }
       ]
     },
     options:{
       indexAxis:"y",
       responsive:true,
       scales:{
-        x:{ stacked:true, title:{display:true, text:"MWh"} },
+        x:{ stacked:true, title:{display:true,text:"MWh"} },
         y:{ stacked:true }
       },
       plugins:{
@@ -173,7 +159,7 @@ function updateAnnualMixChart(gasMWh, solarMWh, batteryMWh){
   });
 }
 
-function updateLcoeChart(
+function renderLcoeChart(
   gasCapex, gasOpex,
   solarCapex, solarOpex,
   batteryCapex, batteryOpex,
@@ -228,7 +214,7 @@ function updateLcoeChart(
       indexAxis:"y",
       responsive:true,
       scales:{
-        x:{ stacked:true, title:{display:true, text:"GBP/MWh"} },
+        x:{ stacked:true, title:{display:true,text:"GBP/MWh"} },
         y:{ stacked:true }
       },
       plugins:{
@@ -241,7 +227,7 @@ function updateLcoeChart(
   });
 }
 
-function updateYearChart(solarFlow, batteryIn, batteryOut, gasFlow){
+function renderYearChart(solarFlow, batteryIn, batteryOut, gasFlow){
   if(yearlyProfileChart) yearlyProfileChart.destroy();
   const ctx= document.getElementById("yearlyProfileChart").getContext("2d");
   const HOURS=8760;
@@ -252,30 +238,10 @@ function updateYearChart(solarFlow, batteryIn, batteryOut, gasFlow){
     data:{
       labels,
       datasets:[
-        {
-          label:"Battery In (Charging)",
-          data:batteryIn,
-          backgroundColor:"#4db6e4",
-          stack:"stack"
-        },
-        {
-          label:"Solar (All)",
-          data:solarFlow,
-          backgroundColor:"#13ce74",
-          stack:"stack"
-        },
-        {
-          label:"Battery Out",
-          data:batteryOut,
-          backgroundColor:"rgba(77,182,228,0.5)",
-          stack:"stack"
-        },
-        {
-          label:"Gas",
-          data:gasFlow,
-          backgroundColor:"#f45d5d",
-          stack:"stack"
-        }
+        { label:"Battery In", data:batteryIn, backgroundColor:"#4db6e4", stack:"stack" },
+        { label:"Solar (All)", data:solarFlow, backgroundColor:"#13ce74", stack:"stack" },
+        { label:"Battery Out", data:batteryOut, backgroundColor:"rgba(77,182,228,0.5)", stack:"stack" },
+        { label:"Gas", data:gasFlow, backgroundColor:"#f45d5d", stack:"stack" }
       ]
     },
     options:{
@@ -286,13 +252,13 @@ function updateYearChart(solarFlow, batteryIn, batteryOut, gasFlow){
         y:{ stacked:true, title:{display:true,text:"MWh/h"} }
       },
       plugins:{
-        title:{display:true, text:"Yearly Profile (8760 hours)"}
+        title:{ display:true, text:"Yearly Profile (8760 hours)" }
       }
     }
   });
 }
 
-function updateJanChart(solarFlow, batteryIn, batteryOut, gasFlow){
+function renderJanChart(solarFlow, batteryIn, batteryOut, gasFlow){
   if(janProfileChart) janProfileChart.destroy();
   const ctx= document.getElementById("janProfileChart").getContext("2d");
   const janStart=0, janEnd=24*7;
@@ -303,30 +269,10 @@ function updateJanChart(solarFlow, batteryIn, batteryOut, gasFlow){
     data:{
       labels,
       datasets:[
-        {
-          label:"Battery In",
-          data:batteryIn.slice(janStart, janEnd),
-          backgroundColor:"#4db6e4",
-          stack:"stack"
-        },
-        {
-          label:"Solar (All)",
-          data:solarFlow.slice(janStart, janEnd),
-          backgroundColor:"#13ce74",
-          stack:"stack"
-        },
-        {
-          label:"Battery Out",
-          data:batteryOut.slice(janStart, janEnd),
-          backgroundColor:"rgba(77,182,228,0.5)",
-          stack:"stack"
-        },
-        {
-          label:"Gas",
-          data:gasFlow.slice(janStart, janEnd),
-          backgroundColor:"#f45d5d",
-          stack:"stack"
-        }
+        { label:"Battery In", data:batteryIn.slice(janStart, janEnd), backgroundColor:"#4db6e4", stack:"stack" },
+        { label:"Solar (All)", data:solarFlow.slice(janStart, janEnd), backgroundColor:"#13ce74", stack:"stack" },
+        { label:"Battery Out", data:batteryOut.slice(janStart, janEnd), backgroundColor:"rgba(77,182,228,0.5)", stack:"stack" },
+        { label:"Gas", data:gasFlow.slice(janStart, janEnd), backgroundColor:"#f45d5d", stack:"stack" }
       ]
     },
     options:{
@@ -336,18 +282,17 @@ function updateJanChart(solarFlow, batteryIn, batteryOut, gasFlow){
         y:{ stacked:true, title:{display:true,text:"MWh/h"} }
       },
       plugins:{
-        title:{display:true, text:"January (7 days)"}
+        title:{ display:true, text:"January (7 days)" }
       }
     }
   });
 }
 
-function updateJulChart(solarFlow, batteryIn, batteryOut, gasFlow){
+function renderJulChart(solarFlow, batteryIn, batteryOut, gasFlow){
   if(julProfileChart) julProfileChart.destroy();
   const ctx= document.getElementById("julProfileChart").getContext("2d");
-  // approximate
-  const julStart= 4344;
-  const julEnd= julStart+ 24*7;
+  const julStart=4344;
+  const julEnd=julStart+ (24*7);
   const labels= [...Array(julEnd- julStart).keys()];
 
   julProfileChart= new Chart(ctx,{
@@ -355,30 +300,10 @@ function updateJulChart(solarFlow, batteryIn, batteryOut, gasFlow){
     data:{
       labels,
       datasets:[
-        {
-          label:"Battery In",
-          data:batteryIn.slice(julStart, julEnd),
-          backgroundColor:"#4db6e4",
-          stack:"stack"
-        },
-        {
-          label:"Solar (All)",
-          data:solarFlow.slice(julStart, julEnd),
-          backgroundColor:"#13ce74",
-          stack:"stack"
-        },
-        {
-          label:"Battery Out",
-          data:batteryOut.slice(julStart, julEnd),
-          backgroundColor:"rgba(77,182,228,0.5)",
-          stack:"stack"
-        },
-        {
-          label:"Gas",
-          data:gasFlow.slice(julStart, julEnd),
-          backgroundColor:"#f45d5d",
-          stack:"stack"
-        }
+        { label:"Battery In", data:batteryIn.slice(julStart,julEnd), backgroundColor:"#4db6e4", stack:"stack" },
+        { label:"Solar (All)", data:solarFlow.slice(julStart,julEnd), backgroundColor:"#13ce74", stack:"stack" },
+        { label:"Battery Out", data:batteryOut.slice(julStart,julEnd), backgroundColor:"rgba(77,182,228,0.5)", stack:"stack" },
+        { label:"Gas", data:gasFlow.slice(julStart,julEnd), backgroundColor:"#f45d5d", stack:"stack" }
       ]
     },
     options:{
@@ -388,7 +313,7 @@ function updateJulChart(solarFlow, batteryIn, batteryOut, gasFlow){
         y:{ stacked:true, title:{display:true,text:"MWh/h"} }
       },
       plugins:{
-        title:{display:true, text:"July (7 days)"}
+        title:{ display:true, text:"July (7 days)" }
       }
     }
   });
