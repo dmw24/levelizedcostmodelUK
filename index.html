@@ -8,7 +8,7 @@
   <!-- Link to external CSS -->
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Chart.js, PapaParse, Tippy.js (for tooltips if needed) -->
+  <!-- Chart.js, PapaParse, Tippy.js (if you want tooltips) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
   <script src="https://unpkg.com/@popperjs/core@2"></script>
@@ -108,7 +108,7 @@
             <label for="gasVarOM">Gas Variable O&amp;M (GBP/MWh):</label>
             <input type="number" id="gasVarOM" value="4" step="1" />
 
-            <label for="gasFuel">Gas Fuel (GBP/MWh fuel):</label>
+            <label for="gasFuel">Gas Fuel (GBP/MWh):</label>
             <input type="number" id="gasFuel" value="40" step="1" />
           </fieldset>
 
@@ -135,14 +135,14 @@
         </div>
       </div>
 
-      <!-- RUN MODEL BUTTON at bottom of sidebar -->
-      <button type="button" onclick="runModel()" class="run-model-btn">Run Model</button>
+      <!-- Button to run the model -->
+      <button type="button" id="runModelBtn" onclick="runModel()">Run Model</button>
     </div>
 
     <!-- CONTENT area with charts in a grid -->
     <div id="content">
       <div id="chartSection">
-        <!-- Generation chart (horizontal) -->
+        <!-- Generation Chart -->
         <div class="chart-box">
           <h3>Annual Generation</h3>
           <canvas id="annualMixChart"></canvas>
@@ -166,9 +166,9 @@
           <canvas id="julProfileChart"></canvas>
         </div>
 
-        <!-- System LCOE breakdown chart at the bottom -->
+        <!-- Single Bar: System LCOE (stacked 6 segments) -->
         <div class="chart-box">
-          <h3>System LCOE Breakdown</h3>
+          <h3>Total LCOE Breakdown</h3>
           <canvas id="systemLcoeChart"></canvas>
         </div>
       </div>
@@ -180,7 +180,7 @@
     Created by <strong>Daan Walter</strong>, 2025
   </footer>
 
-  <!-- Our updated LCOE logic (model.js) -->
+  <!-- Our revised LCOE logic (model.js) -->
   <script src="model.js"></script>
 </body>
 </html>
