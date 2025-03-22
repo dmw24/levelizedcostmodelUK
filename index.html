@@ -2,279 +2,451 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>LCOE Calculator (Chart.js + Zoom)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-  <!-- chartjs-plugin-zoom for zoom/pan -->
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"></script>
-  <!-- PapaParse for CSV -->
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <title>LCOE Calculator</title>
 
   <style>
     :root {
-      /* Colors from earlier "nice green bars" theme */
-      --color-background: #f7f7f7;
-      --color-white: #fff;
-      --color-grey-border: #ccc;
-      --color-dark-grey: #666;
+      /* Original theme variables */
+      --slate-blue: #192238;
+      --off-white: #eceff5;
+      --white: #fff;
+      --mid-slate-blue: #414f6f;
+      --jet-black: #000;
+      --ember-green: #13ce74;
+      --light-ember-green: #1de987;
+      --grey-blue: #d6dbe9;
+      --dark-grey: #959aa7;
+      --dark-grey-blue: #626e88;
+      --transparent: #fff0;
+      --ash-blue: #dee6ef;
+      /* New theme variables from provided code */
+      --color_theme_bg_pop: #13ce74;
+      --background_pop: #13ce74;
+      --color_theme_bg_web: #ffffff;
+      --cover_bg_color: #ffffff;
+      --background_pop_darken: #11b767;
+      --print_on_pop: #ffffff;
+      --color_theme_bg_pop_darken: #11b767;
+      --color_theme_print_on_pop: #ffffff;
+      --border_subtle: rgba(204, 204, 204, 0.5);
+      --background_subtle: rgba(220, 248, 234, 0.4);
+      --print_pop: #13ce74;
+      --color_theme_accent: #13ce74;
+      --cover_print_primary: #363737;
+      --cover_print_secondary: #757575;
+      --cover_print_tertiary: #b6b6b6;
+      --cover_border_color: #13ce74;
+      --font_family_body_preset: 'SF Pro Display', -apple-system, system-ui, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+      --font_weight_body_preset: 400;
+      --font_preset_body: sans;
+      --web_bg_color: #ffffff;
+      --background_contrast_1: #f0f0f0;
+      --color_theme_bg_contrast_1: #f0f0f0;
+      --background_contrast_2: #dddddd;
+      --color_theme_bg_contrast_2: #dddddd;
+      --background_contrast_3: #b7b7b7;
+      --color_theme_bg_contrast_3: #b7b7b7;
+      --background_contrast_4: #929292;
+      --color_theme_bg_contrast_4: #929292;
+      --background_contrast_5: #515151;
+      --color_theme_bg_contrast_5: #515151;
+      --color_theme_detail: #e6e6e6;
+      --background_contrast_pop: rgba(19, 206, 116, 0.4);
+      --color_theme_bg_contrast_pop: rgba(19, 206, 116, 0.4);
+      --input_background: #ffffff;
+      --cover_input_background: #ffffff;
+      --tooltip_background: #191919;
+    }
 
-      /* Accent colors for Gas, Solar, Battery */
-      --color-gas: #f45d5d;
-      --color-gas-light: rgba(244, 93, 93, 0.5);   /* lighter alpha for OPEX */
-      --color-solar: #13ce74;
-      --color-solar-light: rgba(19, 206, 116, 0.5);
-      --color-battery: #4db6e4;
-      --color-battery-light: rgba(77, 182, 228, 0.5);
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
     }
 
     body {
+      background: #f7f7f7; /* VERY LIGHT gray background */
+      color: var(--slate-blue);
+      font-family: Poppins, sans-serif;
+      font-size: 15px;
+      line-height: 23px;
       margin: 0;
-      font-family: Arial, sans-serif;
-      background: var(--color-background);
-      color: #333;
     }
-    header {
-      background: var(--color-white);
-      border-bottom: 1px solid var(--color-grey-border);
-      padding: 1rem;
+
+    header.container {
+      padding-bottom: 0.5rem;
+      background: var(--white);
+      border-bottom: 1px solid var(--grey-blue);
       margin-bottom: 1rem;
     }
-    header h1 {
-      margin: 0;
-      font-size: 1.8em;
+    header.container h1 {
+      margin: 20px 0;
+      font-size: 3.2em;
+      font-weight: 500;
+      line-height: 1.2em;
+      position: relative;
     }
-    header p.disclaimer {
-      margin: 0.3rem 0 0;
-      font-size: 0.85em;
-      color: var(--color-dark-grey);
+    header.container h1::before {
+      content: "";
+      display: inline-block;
+      width: 6px;
+      height: 1em;
+      background: var(--color_theme_accent);
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+    header.container p.disclaimer {
+      font-size: 0.9em;
+      color: var(--dark-grey);
+      margin: 0 0 1rem 0;
+    }
+
+    h2 {
+      margin: 20px 0;
+      font-size: 2.5em;
+      font-weight: 500;
+      line-height: 1.2em;
+    }
+
+    /* Title above sidebar groups */
+    #sidebar h2 {
+      margin-top: 0;
+      margin-bottom: 1rem;
+      font-size: 1.8em;
+      font-weight: 500;
+      border-bottom: 1px solid var(--grey-blue);
+      padding-bottom: 0.5rem;
+    }
+
+    /* Group titles (majors) styling without boxes, with toggle arrow and extra spacing */
+    .group-title {
+      margin: 15px 0 10px 0;
+      font-size: 1.5em;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .group-title::before {
+      content: "";
+      display: inline-block;
+      width: 6px;
+      height: 1.2em;
+      background: var(--color_theme_accent);
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    .group-title::after {
+      content: "►";
+      float: right;
+      font-size: 0.8em;
+      vertical-align: middle;
+    }
+    .group-title.expanded::after {
+      content: "▼";
+    }
+    /* Default state: groups collapsed, no grey background, no border */
+    .group .group-content {
+      display: none;
+      margin-top: 10px;
+      margin-bottom: 20px;
+      padding-left: 0;
+    }
+    .group {
+      margin-bottom: 20px;
+    }
+
+    fieldset {
+      margin-bottom: 20px;
+    }
+    fieldset legend {
+      border-left: 4px solid var(--color_theme_accent);
+      padding-left: 8px;
+      font-size: 1.1em;
+      margin-bottom: 10px;
+    }
+    fieldset label {
+      border-left: 2px solid var(--grey-blue);
+      padding-left: 5px;
+      margin-bottom: 5px;
+      display: block;
+      font-weight: 600;
+    }
+
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: 0.4rem;
+      border: 1px solid var(--grey-blue);
+      border-radius: 4px;
+      font-size: 0.95rem;
+      background: var(--white);
+      color: var(--slate-blue);
     }
 
     .container {
-      display: flex;
-      gap: 20px;
-      max-width: 1400px;
+      width: 100%;
+      max-width: 1100px;
       margin: 0 auto;
-      padding: 1rem;
+      padding: 20px;
+      position: relative;
+      background: var(--white);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .sim-container {
+      display: flex;
+      height: calc(100vh - 150px);
+      gap: 20px;
     }
 
-    /* Sidebar for inputs */
+    /* Sidebar styling */
     #sidebar {
       width: 320px;
-      background: var(--color-white);
+      background: var(--white);
       padding: 1rem;
-      border: 1px solid var(--color-grey-border);
-      border-radius: 4px;
-      flex-shrink: 0;
-    }
-    #sidebar h2 {
-      margin-top: 0;
-    }
-    #sidebar label {
-      display: block;
-      margin: 0.5rem 0 0.2rem;
-      font-weight: 600;
-    }
-    #sidebar input[type="number"] {
-      width: 100%;
-      padding: 0.3rem;
-      margin-bottom: 0.5rem;
+      padding-bottom: 30px;
+      border: 1px solid var(--grey-blue);
+      border-right: none;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      overflow-y: auto;
     }
 
-    /* Charts layout in a 2x3 grid */
-    #charts-container {
-      flex: 1;
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      grid-template-rows: auto auto auto; /* 3 rows of charts */
-      gap: 20px;
-    }
-    .chart-box {
-      background: var(--color-white);
-      border: 1px solid var(--color-grey-border);
-      border-radius: 4px;
-      padding: 0.5rem;
+    /* Content area (chart + controls) */
+    #content {
+      flex-grow: 1;
+      padding: 1rem;
       display: flex;
       flex-direction: column;
-      min-height: 350px;
-    }
-    .chart-box h3 {
-      margin: 0 0 0.5rem;
-      font-size: 1.1em;
-    }
-    .chart-canvas {
-      flex: 1;
-      position: relative;
-      min-height: 200px;
-    }
-    /* The summary box can share the same style */
-    #summary {
-      padding: 0.5rem;
-      background: #f9f9f9;
-      border: 1px solid var(--color-grey-border);
-      border-radius: 4px;
-      min-height: 150px;
+      border: 1px solid var(--grey-blue);
+      border-radius: 8px;
     }
 
-    footer {
-      text-align: center;
-      padding: 0.5rem;
-      background: var(--color-white);
-      border-top: 1px solid var(--color-grey-border);
-      margin-top: 1rem;
-      font-size: 0.8em;
-      color: var(--color-dark-grey);
-    }
-
-    /* Button above the charts */
-    #runModelBtn {
+    #chartControls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       margin-bottom: 1rem;
-      padding: 0.5rem 1rem;
-      cursor: pointer;
+    }
+    #chartControls label {
+      margin: 0;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    #chartControls select {
+      min-width: 150px;
+      padding: 0.4rem;
+      border: 1px solid var(--grey-blue);
+      border-radius: 4px;
+      background: var(--white);
+      color: var(--slate-blue);
+    }
+    #chartControls button {
+      padding: 8px 15px;
+      font-size: 0.9em;
       border: none;
       border-radius: 4px;
-      background: var(--color-solar);
-      color: var(--color-white);
-      font-weight: 600;
+      background-color: var(--color_theme_bg_pop);
+      color: var(--slate-blue);
+      cursor: pointer;
+      transition: background-color 0.2s;
     }
-    #runModelBtn:hover {
-      background: #0ebd69; /* darken the green slightly */
+    #chartControls button:hover {
+      background-color: var(--background_pop_darken);
     }
 
-    @media screen and (max-width: 900px) {
-      .container {
+    #chartSection {
+      flex-grow: 1;
+      min-height: 600px;
+    }
+
+    @media screen and (max-width: 767px) {
+      .sim-container {
         flex-direction: column;
+        height: auto;
       }
       #sidebar {
         width: 100%;
-        margin-bottom: 1rem;
-      }
-      #charts-container {
-        grid-template-columns: 1fr; /* single column if narrower screen */
+        border-right: none;
+        border-bottom: 1px solid var(--grey-blue);
       }
     }
+
+    /* Footer banner */
+    footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: var(--white);
+      border-top: 1px solid #000;
+      text-align: center;
+      padding: 5px;
+      font-size: 0.8em;
+      color: var(--dark-grey);
+    }
+    footer strong {
+      font-weight: bold;
+    }
   </style>
+
+  <!-- Chart.js (for LCOE charts) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Tippy.js + Popper.js (for tooltips, if needed) -->
+  <script src="https://unpkg.com/@popperjs/core@2"></script>
+  <script src="https://unpkg.com/tippy.js@6"></script>
+  <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale.css"/>
+  <script>
+    // Set Chart.js default font family and size
+    Chart.defaults.font.family = 'Poppins, sans-serif';
+    Chart.defaults.font.size = 15;
+  </script>
 </head>
+
 <body>
-  <header>
-    <h1>LCOE Calculator (Chart.js + Zoom)</h1>
+  <header class="container">
+    <h1>LCOE Calculator</h1>
     <p class="disclaimer">
-      This is a high-level LCOE model with a single stacked bar for generation mix, 
-      and a single stacked bar for total LCOE split into 6 segments (capex/opex for Gas, Solar, Battery).
+      This is a high-level LCOE model, built with AI assistance. 
+      All numbers and assumptions are illustrative only and should not be taken as precise forecasts.
     </p>
   </header>
 
-  <div class="container">
-    <!-- SIDEBAR with inputs -->
+  <div class="container sim-container">
+    <!-- Sidebar with LCOE parameters -->
     <div id="sidebar">
-      <h2>Model Inputs</h2>
+      <h2>Model parameters</h2>
 
-      <label for="solarCap">Solar Capacity (GW):</label>
-      <input type="number" id="solarCap" value="6" step="0.1" />
+      <!-- System Configuration Group -->
+      <div class="group">
+        <h3 class="group-title collapsed" onclick="toggleGroup(this)">System Configuration</h3>
+        <div class="group-content">
+          <fieldset>
+            <legend>Capacities</legend>
+            <label for="solarCap" data-tippy-content="Solar capacity in GW.">Solar Capacity (GW):</label>
+            <input type="number" id="solarCap" value="6" step="0.1">
 
-      <label for="batteryCap">Battery Capacity (GWh):</label>
-      <input type="number" id="batteryCap" value="10" step="1" />
+            <label for="batteryCap" data-tippy-content="Battery capacity in GWh.">Battery Capacity (GWh):</label>
+            <input type="number" id="batteryCap" value="10" step="1">
+          </fieldset>
+        </div>
+      </div>
 
-      <label for="gasCapex">Gas Capex (GBP/kW):</label>
-      <input type="number" id="gasCapex" value="800" step="1" />
+      <!-- Assumptions Group -->
+      <div class="group">
+        <h3 class="group-title collapsed" onclick="toggleGroup(this)">Assumptions</h3>
+        <div class="group-content">
+          <fieldset>
+            <legend>Costs</legend>
+            <label for="gasCapex">Gas Capex (GBP/kW):</label>
+            <input type="number" id="gasCapex" value="800" step="1">
 
-      <label for="solarCapex">Solar Capex (GBP/kW):</label>
-      <input type="number" id="solarCapex" value="450" step="1" />
+            <label for="solarCapex">Solar Capex (GBP/kW):</label>
+            <input type="number" id="solarCapex" value="450" step="1">
 
-      <label for="batteryCapex">Battery Capex (GBP/kWh):</label>
-      <input type="number" id="batteryCapex" value="200" step="1" />
+            <label for="batteryCapex">Battery Capex (GBP/kWh):</label>
+            <input type="number" id="batteryCapex" value="200" step="1">
+          </fieldset>
 
-      <label for="gasFixedOM">Gas Fixed O&amp;M (GBP/MW/yr):</label>
-      <input type="number" id="gasFixedOM" value="18000" step="100" />
+          <fieldset>
+            <legend>O&amp;M</legend>
+            <label for="gasFixedOM">Gas Fixed O&amp;M (GBP/MW/yr):</label>
+            <input type="number" id="gasFixedOM" value="18000" step="100">
 
-      <label for="solarFixedOM">Solar Fixed O&amp;M (GBP/MW/yr):</label>
-      <input type="number" id="solarFixedOM" value="8000" step="100" />
+            <label for="solarFixedOM">Solar Fixed O&amp;M (GBP/MW/yr):</label>
+            <input type="number" id="solarFixedOM" value="8000" step="100">
 
-      <label for="batteryFixedOM">Battery Fixed O&amp;M (GBP/MW/yr):</label>
-      <input type="number" id="batteryFixedOM" value="6000" step="100" />
+            <label for="batteryFixedOM">Battery Fixed O&amp;M (GBP/MW/yr):</label>
+            <input type="number" id="batteryFixedOM" value="6000" step="100">
 
-      <label for="gasVarOM">Gas Variable O&amp;M (GBP/MWh):</label>
-      <input type="number" id="gasVarOM" value="4" step="1" />
+            <label for="gasVarOM">Gas Variable O&amp;M (GBP/MWh):</label>
+            <input type="number" id="gasVarOM" value="4" step="1">
 
-      <label for="gasFuel">Gas Fuel (GBP/MWh):</label>
-      <input type="number" id="gasFuel" value="40" step="1" />
+            <label for="gasFuel">Gas Fuel (GBP/MWh):</label>
+            <input type="number" id="gasFuel" value="40" step="1">
+          </fieldset>
 
-      <label for="gasEfficiency">Gas Efficiency (%):</label>
-      <input type="number" id="gasEfficiency" value="45" step="1" />
+          <fieldset>
+            <legend>Other</legend>
+            <label for="gasEfficiency">Gas Efficiency (%):</label>
+            <input type="number" id="gasEfficiency" value="45" step="1">
 
-      <label for="inverterRatio">Inverter Ratio:</label>
-      <input type="number" id="inverterRatio" value="1.2" step="0.1" />
+            <label for="inverterRatio">Inverter Ratio:</label>
+            <input type="number" id="inverterRatio" value="1.2" step="0.1">
 
-      <label for="waccFossil">WACC Fossil (%):</label>
-      <input type="number" id="waccFossil" value="8" step="0.1" />
+            <label for="waccFossil">WACC Fossil (%):</label>
+            <input type="number" id="waccFossil" value="8" step="0.1">
 
-      <label for="waccRenew">WACC Renewables (%):</label>
-      <input type="number" id="waccRenew" value="5" step="0.1" />
+            <label for="waccRenew">WACC Renewables (%):</label>
+            <input type="number" id="waccRenew" value="5" step="0.1">
 
-      <label for="lifetimeFossil">Lifetime (fossil) (yrs):</label>
-      <input type="number" id="lifetimeFossil" value="25" step="1" />
+            <label for="lifetimeFossil">Lifetime (fossil) (yrs):</label>
+            <input type="number" id="lifetimeFossil" value="25" step="1">
 
-      <label for="lifetimeSolar">Lifetime (solar) (yrs):</label>
-      <input type="number" id="lifetimeSolar" value="35" step="1" />
-
+            <label for="lifetimeSolar">Lifetime (solar) (yrs):</label>
+            <input type="number" id="lifetimeSolar" value="35" step="1">
+          </fieldset>
+        </div>
+      </div>
     </div>
 
-    <!-- CHARTS in a 2x3 grid -->
-    <div style="flex:1; display:flex; flex-direction:column;">
-      <!-- The "Run Model" button above the charts -->
-      <button id="runModelBtn" onclick="runModel()">Run Model</button>
+    <!-- Main content: chart controls and canvas -->
+    <div id="content">
+      <div id="chartControls">
+        <label for="chartType">Chart type:</label>
+        <select id="chartType">
+          <option value="yearly">Yearly Profile</option>
+          <option value="jan">January</option>
+          <option value="jul">July</option>
+          <option value="mix">Generation Mix</option>
+          <option value="lcoe">LCOE Breakdown</option>
+        </select>
+        <button type="button" id="runModelBtn">Run Model</button>
+      </div>
 
-      <div id="charts-container">
-        <!-- 1) Generation Mix (one bar => 100%) -->
-        <div class="chart-box">
-          <h3>Generation Mix (Single Bar)</h3>
-          <div class="chart-canvas">
-            <canvas id="annualMixChart"></canvas>
-          </div>
-        </div>
-        <!-- 2) Yearly Profile -->
-        <div class="chart-box">
-          <h3>Yearly Profile</h3>
-          <div class="chart-canvas">
-            <canvas id="yearlyProfileChart"></canvas>
-          </div>
-        </div>
-        <!-- 3) January (7 days) -->
-        <div class="chart-box">
-          <h3>Selected January Days</h3>
-          <div class="chart-canvas">
-            <canvas id="janProfileChart"></canvas>
-          </div>
-        </div>
-        <!-- 4) July (7 days) -->
-        <div class="chart-box">
-          <h3>Selected July Days</h3>
-          <div class="chart-canvas">
-            <canvas id="julProfileChart"></canvas>
-          </div>
-        </div>
-        <!-- 5) LCOE Breakdown (one bar => total system LCOE) -->
-        <div class="chart-box">
-          <h3>LCOE Breakdown (Single Bar)</h3>
-          <div class="chart-canvas">
-            <canvas id="lcoeBreakdownChart"></canvas>
-          </div>
-        </div>
-        <!-- 6) Summary -->
-        <div class="chart-box">
-          <h3>Summary</h3>
-          <div id="summary"></div>
-        </div>
+      <div id="chartSection">
+        <canvas id="chartCanvas"></canvas>
       </div>
     </div>
   </div>
 
   <footer>
-    &copy; 2025 Created by <strong>Daan Walter</strong> - LCOE Calculator (Chart.js + Zoom)
+    Created by <strong>Daan Walter</strong>, 2025
   </footer>
 
-  <!-- Our main logic (model.js) -->
-  <script src="model.js"></script>
+  <script>
+    // Toggle group content display on click and update arrow.
+    function toggleGroup(el) {
+      const content = el.nextElementSibling;
+      if (content.style.display === "none" || content.style.display === "") {
+        content.style.display = "block";
+        el.classList.remove("collapsed");
+        el.classList.add("expanded");
+      } else {
+        content.style.display = "none";
+        el.classList.remove("expanded");
+        el.classList.add("collapsed");
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+      // Ensure all group titles are collapsed by default.
+      document.querySelectorAll('.group-title').forEach(el => {
+        el.classList.add("collapsed");
+        const content = el.nextElementSibling;
+        content.style.display = "none";
+      });
+      tippy('[data-tippy-content]', {
+        animation: 'scale',
+        theme: 'light-border'
+      });
+    });
+
+    // (Placeholder) For hooking up the chart logic in your model.js
+    // Example usage:
+    document.getElementById('runModelBtn').addEventListener('click', () => {
+      // call runModel or similar from your "model.js"
+      console.log("Run Model clicked!");
+    });
+  </script>
 </body>
 </html>
