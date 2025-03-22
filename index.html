@@ -2,27 +2,42 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Levelized cost model</title>
+  <title>LCOE Calculator (Chart.js + Zoom)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Chart.js (original library) -->
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
   <!-- chartjs-plugin-zoom for zoom/pan -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"></script>
   <!-- PapaParse for CSV -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
 
-  <!-- Minimal CSS to lay out charts in a 2x3 grid + sidebar -->
   <style>
+    :root {
+      /* Colors from earlier "nice green bars" theme */
+      --color-background: #f7f7f7;
+      --color-white: #fff;
+      --color-grey-border: #ccc;
+      --color-dark-grey: #666;
+
+      /* Accent colors for Gas, Solar, Battery */
+      --color-gas: #f45d5d;
+      --color-gas-light: rgba(244, 93, 93, 0.5);   /* lighter alpha for OPEX */
+      --color-solar: #13ce74;
+      --color-solar-light: rgba(19, 206, 116, 0.5);
+      --color-battery: #4db6e4;
+      --color-battery-light: rgba(77, 182, 228, 0.5);
+    }
+
     body {
       margin: 0;
       font-family: Arial, sans-serif;
-      background: #f7f7f7;
+      background: var(--color-background);
       color: #333;
     }
     header {
-      background: #fff;
-      border-bottom: 1px solid #ccc;
+      background: var(--color-white);
+      border-bottom: 1px solid var(--color-grey-border);
       padding: 1rem;
       margin-bottom: 1rem;
     }
@@ -33,7 +48,7 @@
     header p.disclaimer {
       margin: 0.3rem 0 0;
       font-size: 0.85em;
-      color: #666;
+      color: var(--color-dark-grey);
     }
 
     .container {
@@ -43,12 +58,13 @@
       margin: 0 auto;
       padding: 1rem;
     }
+
     /* Sidebar for inputs */
     #sidebar {
       width: 320px;
-      background: #fff;
+      background: var(--color-white);
       padding: 1rem;
-      border: 1px solid #ccc;
+      border: 1px solid var(--color-grey-border);
       border-radius: 4px;
       flex-shrink: 0;
     }
@@ -65,18 +81,6 @@
       padding: 0.3rem;
       margin-bottom: 0.5rem;
     }
-    button {
-      margin-top: 1rem;
-      padding: 0.5rem 1rem;
-      cursor: pointer;
-      border: none;
-      border-radius: 4px;
-      background: #007bff;
-      color: #fff;
-    }
-    button:hover {
-      background: #005dc1;
-    }
 
     /* Charts layout in a 2x3 grid */
     #charts-container {
@@ -87,8 +91,8 @@
       gap: 20px;
     }
     .chart-box {
-      background: #fff;
-      border: 1px solid #ccc;
+      background: var(--color-white);
+      border: 1px solid var(--color-grey-border);
       border-radius: 4px;
       padding: 0.5rem;
       display: flex;
@@ -108,7 +112,7 @@
     #summary {
       padding: 0.5rem;
       background: #f9f9f9;
-      border: 1px solid #ccc;
+      border: 1px solid var(--color-grey-border);
       border-radius: 4px;
       min-height: 150px;
     }
@@ -116,18 +120,38 @@
     footer {
       text-align: center;
       padding: 0.5rem;
-      background: #fff;
-      border-top: 1px solid #ccc;
+      background: var(--color-white);
+      border-top: 1px solid var(--color-grey-border);
       margin-top: 1rem;
       font-size: 0.8em;
-      color: #666;
+      color: var(--color-dark-grey);
+    }
+
+    /* Button above the charts */
+    #runModelBtn {
+      margin-bottom: 1rem;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background: var(--color-solar);
+      color: var(--color-white);
+      font-weight: 600;
+    }
+    #runModelBtn:hover {
+      background: #0ebd69; /* darken the green slightly */
     }
 
     @media screen and (max-width: 900px) {
-      .container { flex-direction: column; }
-      #sidebar { width: 100%; margin-bottom: 1rem; }
+      .container {
+        flex-direction: column;
+      }
+      #sidebar {
+        width: 100%;
+        margin-bottom: 1rem;
+      }
       #charts-container {
-        grid-template-columns: 1fr; /* single column if very narrow screen */
+        grid-template-columns: 1fr; /* single column if narrower screen */
       }
     }
   </style>
@@ -136,8 +160,8 @@
   <header>
     <h1>LCOE Calculator (Chart.js + Zoom)</h1>
     <p class="disclaimer">
-      This is a high-level LCOE model with a horizontal bar chart for annual mix, 
-      plus stacked bar charts for profiles, using chartjs-plugin-zoom for interactive zoom.
+      This is a high-level LCOE model with a single stacked bar for generation mix, 
+      and a single stacked bar for total LCOE split into 6 segments (capex/opex for Gas, Solar, Battery).
     </p>
   </header>
 
@@ -194,50 +218,54 @@
       <label for="lifetimeSolar">Lifetime (solar) (yrs):</label>
       <input type="number" id="lifetimeSolar" value="35" step="1" />
 
-      <button onclick="runModel()">Run Model</button>
     </div>
 
     <!-- CHARTS in a 2x3 grid -->
-    <div id="charts-container">
-      <!-- 1) Annual Mix (horizontal bar) -->
-      <div class="chart-box">
-        <h3>Annual Generation Mix</h3>
-        <div class="chart-canvas">
-          <canvas id="annualMixChart"></canvas>
+    <div style="flex:1; display:flex; flex-direction:column;">
+      <!-- The "Run Model" button above the charts -->
+      <button id="runModelBtn" onclick="runModel()">Run Model</button>
+
+      <div id="charts-container">
+        <!-- 1) Generation Mix (one bar => 100%) -->
+        <div class="chart-box">
+          <h3>Generation Mix (Single Bar)</h3>
+          <div class="chart-canvas">
+            <canvas id="annualMixChart"></canvas>
+          </div>
         </div>
-      </div>
-      <!-- 2) Yearly Profile -->
-      <div class="chart-box">
-        <h3>Yearly Profile</h3>
-        <div class="chart-canvas">
-          <canvas id="yearlyProfileChart"></canvas>
+        <!-- 2) Yearly Profile -->
+        <div class="chart-box">
+          <h3>Yearly Profile</h3>
+          <div class="chart-canvas">
+            <canvas id="yearlyProfileChart"></canvas>
+          </div>
         </div>
-      </div>
-      <!-- 3) January (7 days) -->
-      <div class="chart-box">
-        <h3>Selected January Days</h3>
-        <div class="chart-canvas">
-          <canvas id="janProfileChart"></canvas>
+        <!-- 3) January (7 days) -->
+        <div class="chart-box">
+          <h3>Selected January Days</h3>
+          <div class="chart-canvas">
+            <canvas id="janProfileChart"></canvas>
+          </div>
         </div>
-      </div>
-      <!-- 4) July (7 days) -->
-      <div class="chart-box">
-        <h3>Selected July Days</h3>
-        <div class="chart-canvas">
-          <canvas id="julProfileChart"></canvas>
+        <!-- 4) July (7 days) -->
+        <div class="chart-box">
+          <h3>Selected July Days</h3>
+          <div class="chart-canvas">
+            <canvas id="julProfileChart"></canvas>
+          </div>
         </div>
-      </div>
-      <!-- 5) LCOE Breakdown -->
-      <div class="chart-box">
-        <h3>Levelized Cost Breakdown</h3>
-        <div class="chart-canvas">
-          <canvas id="lcoeBreakdownChart"></canvas>
+        <!-- 5) LCOE Breakdown (one bar => total system LCOE) -->
+        <div class="chart-box">
+          <h3>LCOE Breakdown (Single Bar)</h3>
+          <div class="chart-canvas">
+            <canvas id="lcoeBreakdownChart"></canvas>
+          </div>
         </div>
-      </div>
-      <!-- Summary box -->
-      <div class="chart-box">
-        <h3>Summary</h3>
-        <div id="summary"></div>
+        <!-- 6) Summary -->
+        <div class="chart-box">
+          <h3>Summary</h3>
+          <div id="summary"></div>
+        </div>
       </div>
     </div>
   </div>
