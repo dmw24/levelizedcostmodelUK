@@ -2,33 +2,33 @@
  * model.js
  ***************************************************/
 
-// Global data store for the solar profile
-let solarProfile = []; // array of hourly values (0-1 kW/kW capacity)
+// We store the solar profile (8760 hours) in this array
+let solarProfile = [];
 const HOURS_PER_YEAR = 8760;
 
+// Load CSV immediately on page load
 window.onload = () => {
-  // Parse the CSV right when the page loads
   Papa.parse("solarprofile.csv", {
     download: true,
     header: true,
     dynamicTyping: true,
     complete: function(results) {
-      // Extract the "electricity" column as array
+      // Fill solarProfile with hourly capacity factors
       solarProfile = results.data.map(row => row.electricity || 0);
-      console.log("Solar profile loaded:", solarProfile.slice(0, 24));
+      console.log("Solar profile loaded. First 24 hours:", solarProfile.slice(0,24));
+
+      // Once loaded, run model with default inputs
+      runModel();
     }
   });
 };
 
-/**
- * Main function to run the LCOE model.
- */
 function runModel() {
-  // === 1) Read user inputs ===
+  // === 1) Grab user inputs ===
   const solarCapGW = parseFloat(document.getElementById("solarCap").value) || 0;
   const batteryCapGWh = parseFloat(document.getElementById("batteryCap").value) || 0;
 
-  // Assumptions
+  // Cost assumptions
   const gasCapex = parseFloat(document.getElementById("gasCapex").value) || 800;       // GBP/kW
   const solarCapex = parseFloat(document.getElementById("solarCapex").value) || 450;   // GBP/kW
   const batteryCapex = parseFloat(document.getElementById("batteryCapex").value) || 200; // GBP/kWh
@@ -39,173 +39,168 @@ function runModel() {
 
   const gasVarOM = parseFloat(document.getElementById("gasVarOM").value) || 4;   // GBP/MWh
   const gasFuel = parseFloat(document.getElementById("gasFuel").value) || 40;    // GBP/MWh
-  const gasEfficiency = parseFloat(document.getElementById("gasEfficiency").value) / 100 || 0.45;
+  const gasEfficiency = (parseFloat(document.getElementById("gasEfficiency").value) || 45) / 100;
 
   const inverterRatio = parseFloat(document.getElementById("inverterRatio").value) || 1.2;
-  const waccFossil = parseFloat(document.getElementById("waccFossil").value) / 100 || 0.08;
-  const waccRenew = parseFloat(document.getElementById("waccRenew").value) / 100 || 0.05;
+  const waccFossil = (parseFloat(document.getElementById("waccFossil").value) || 8) / 100;
+  const waccRenew = (parseFloat(document.getElementById("waccRenew").value) || 5) / 100;
 
-  const lifetimeFossil = parseFloat(document.getElementById("lifetimeFossil").value) || 25;
-  const lifetimeSolar = parseFloat(document.getElementById("lifetimeSolar").value) || 35;
+  const lifetimeFossil = parseFloat(document.getElementById("lifetimeFossil").value) || 25; // e.g. 25 yrs
+  const lifetimeSolar = parseFloat(document.getElementById("lifetimeSolar").value) || 35;   // e.g. 35 yrs
 
-  // Convert to consistent units
-  const solarCapMW = solarCapGW * 1000;      // from GW to MW
-  const batteryCapMWh = batteryCapGWh * 1000; // from GWh to MWh
+  // Convert to MW, MWh
+  const solarCapMW = solarCapGW * 1000;
+  const batteryCapMWh = batteryCapGWh * 1000;
 
-  // === 2) Dispatch Model ===
-  // We'll supply 1 GW baseload. For each hour:
-  //   solar generation = profile * solarCapMW (BUT we must apply the inverter ratio)
-  //   battery charges from solar if surplus, discharges if short
-  //   remainder from gas
-  // We'll track total MWh from each source.
-
-  // Battery state-of-charge (MWh)
+  // === 2) Dispatch model ===
+  // We'll meet 1 GW baseload => 1000 MWh/h
   let batterySoC = 0;
+  const solarFlow = new Array(HOURS_PER_YEAR).fill(0);
+  const batteryFlow = new Array(HOURS_PER_YEAR).fill(0);
+  const gasFlow = new Array(HOURS_PER_YEAR).fill(0);
 
-  // Arrays to store hourly generation (MWh)
-  let solarGen = new Array(HOURS_PER_YEAR).fill(0);
-  let batteryGen = new Array(HOURS_PER_YEAR).fill(0);
-  let gasGen = new Array(HOURS_PER_YEAR).fill(0);
+  // Max AC from solar after inverter ratio
+  const maxSolarAC = solarCapMW / inverterRatio;
 
   for (let h = 0; h < HOURS_PER_YEAR; h++) {
-    // Demand for each hour is 1 GW => 1000 MWh/h
-    const demandMWh = 1000;
-
-    // Potential solar (MW) is solarProfile[h] * solarCapMW
-    // But invert AC limit with ratio: max AC = solarCapMW / inverterRatio
-    const maxSolarAC = solarCapMW / inverterRatio; // MW
-    const rawSolarMW = solarProfile[h] * solarCapMW; // MW
+    let demand = 1000; // MWh/h
+    // Potential solar
+    const rawSolarMW = solarProfile[h] * solarCapMW;
     const clippedSolarMW = Math.min(rawSolarMW, maxSolarAC);
+    solarFlow[h] = clippedSolarMW;
 
-    const solarMWh = clippedSolarMW; // MWh for this hour
-    // Surplus or deficit relative to 1 GW demand
-    let deficit = demandMWh - solarMWh;
-    let batteryUsed = 0;
-    let solarExcess = 0;
+    // Net load after solar
+    let netLoad = demand - clippedSolarMW; 
 
-    // If there's still demand after solar
-    if (deficit > 0) {
-      // Attempt to discharge battery
+    if (netLoad > 0) {
+      // We still need power => try discharging battery
       if (batterySoC > 0) {
-        // For simplicity, let the battery meet as much deficit as possible
-        batteryUsed = Math.min(deficit, batterySoC);
-        deficit -= batteryUsed;
-        batterySoC -= batteryUsed;
+        const discharge = Math.min(netLoad, batterySoC);
+        batteryFlow[h] = discharge; // + => discharge
+        batterySoC -= discharge;
+        netLoad -= discharge;
+      }
+      // Remaining netLoad from gas
+      if (netLoad > 0) {
+        gasFlow[h] = netLoad;
+        netLoad = 0;
       }
     } else {
-      // We have surplus solar
-      solarExcess = Math.abs(deficit);
-      deficit = 0;
-
-      // Charge battery with surplus
+      // We have surplus solar => charge battery
+      const surplus = -netLoad; 
       const spaceInBattery = batteryCapMWh - batterySoC;
-      const batteryCharge = Math.min(solarExcess, spaceInBattery);
-      batterySoC += batteryCharge;
-      solarExcess -= batteryCharge;
+      if (spaceInBattery > 0) {
+        const charge = Math.min(surplus, spaceInBattery);
+        batterySoC += charge;
+        batteryFlow[h] = -charge; // negative => charging
+      }
+      // netLoad is zero now
     }
-
-    // Any remaining deficit is met by gas
-    const gasUsed = deficit > 0 ? deficit : 0;
-
-    // Store results
-    solarGen[h] = solarMWh;        // MWh from solar
-    batteryGen[h] = batteryUsed;   // MWh from battery
-    gasGen[h] = gasUsed;           // MWh from gas
   }
 
   // === 3) Summaries ===
-  const totalSolarMWh = sumArray(solarGen);
-  const totalBatteryMWh = sumArray(batteryGen);
-  const totalGasMWh = sumArray(gasGen);
-  const totalDemandMWh = totalSolarMWh + totalBatteryMWh + totalGasMWh; // should be ~ 8760 * 1000
+  const totalSolarMWh = sumArray(solarFlow);
+  const totalBatteryDischargeMWh = sumArray(batteryFlow.map(x => (x > 0 ? x : 0)));
+  const totalGasMWh = sumArray(gasFlow);
+  // The total demand is 8760 * 1000 = 8,760,000 MWh
+  const totalDemandMWh = HOURS_PER_YEAR * 1000;
 
-  // === 4) LCOE Calculation ===
-  // We'll do a simplistic approach: we treat each asset's LCOE separately, then do a weighted sum.
+  // === 4) LCOE with separate lifetimes ===
 
-  // Gas plant is 1 GW => 1000 MW
+  // a) Gas => uses lifetimeFossil
   const gasCapMW = 1000; // 1 GW
-  const solarCapexTotal = solarCapMW * solarCapex;        // GBP
-  const gasCapexTotal = gasCapMW * gasCapex;              // GBP
-  // Battery: MWh * capex
-  const batteryCapexTotal = batteryCapMWh * batteryCapex; // GBP
-
-  // Convert fixed O&M from GBP/MW/yr to total
-  const gasFixedOMTotal = gasCapMW * gasFixedOM;         // GBP/yr
-  const solarFixedOMTotal = solarCapMW * solarFixedOM;   // GBP/yr
-  // Battery fixed O&M in GBP/MW/yr => need battery power rating? 
-  // For simplicity, assume battery power rating = batteryCapMWh / 1 (1hr battery) or user can define
-  // We'll approximate battery MW = batteryCapMWh / 4 for example. This is an assumption you can refine.
-  // Or treat the "MW" for battery as if batteryCapMWh => "capacity" in MW if 1 hour discharge.
-  // Let's do a simple approach: if we had a "battery MW" = batteryCapMWh / 4
-  const batteryMW = batteryCapMWh / 4;
-  const batteryFixedOMTotal = batteryMW * batteryFixedOM;
-
-  // Fuel cost for gas = gasUsed (MWh) * gasFuel
-  // But we also have gasVarOM per MWh
-  const totalGasFuelCost = totalGasMWh * gasFuel;
-  const totalGasVarOMCost = totalGasMWh * gasVarOM;
-
-  // Capital Recovery Factors
+  const gasCapexTotal = gasCapMW * gasCapex; // GBP
   const crfGas = calcCRF(waccFossil, lifetimeFossil);
-  const crfSolar = calcCRF(waccRenew, lifetimeSolar);
-  // For battery, assume same lifetime as solar for simplicity
-  const crfBattery = calcCRF(waccRenew, lifetimeSolar);
-
-  // Annualized CAPEX
   const gasAnnualCapex = gasCapexTotal * crfGas;
+  // O&M
+  const gasAnnualFixedOM = gasCapMW * gasFixedOM; 
+  const gasAnnualVarOM = totalGasMWh * gasVarOM;
+  const gasAnnualFuel = totalGasMWh * gasFuel;
+  const gasAnnualCost = gasAnnualCapex + gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel;
+  const gasLcoe = (totalGasMWh > 0)
+    ? gasAnnualCost / (totalGasMWh / HOURS_PER_YEAR)
+    : 0;
+  const gasCapexLcoe = (totalGasMWh > 0)
+    ? gasAnnualCapex / (totalGasMWh / HOURS_PER_YEAR)
+    : 0;
+  const gasOpexLcoe = (totalGasMWh > 0)
+    ? (gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel) / (totalGasMWh / HOURS_PER_YEAR)
+    : 0;
+
+  // b) Solar => uses lifetimeSolar
+  const solarCapexTotal = solarCapMW * solarCapex;
+  const crfSolar = calcCRF(waccRenew, lifetimeSolar);
   const solarAnnualCapex = solarCapexTotal * crfSolar;
+  const solarAnnualFixedOM = solarCapMW * solarFixedOM;
+  const solarAnnualCost = solarAnnualCapex + solarAnnualFixedOM;
+  const solarLcoe = (totalSolarMWh > 0)
+    ? solarAnnualCost / (totalSolarMWh / HOURS_PER_YEAR)
+    : 0;
+  const solarCapexLcoe = (totalSolarMWh > 0)
+    ? solarAnnualCapex / (totalSolarMWh / HOURS_PER_YEAR)
+    : 0;
+  const solarOpexLcoe = (totalSolarMWh > 0)
+    ? solarAnnualFixedOM / (totalSolarMWh / HOURS_PER_YEAR)
+    : 0;
+
+  // c) Battery => hard-coded 25 years
+  const batteryCapexTotal = batteryCapMWh * batteryCapex;
+  const crfBattery = calcCRF(waccRenew, 25);
   const batteryAnnualCapex = batteryCapexTotal * crfBattery;
+  // For O&M, we guess battery power rating => batteryCapMWh / 4, etc.
+  const batteryMW = batteryCapMWh / 4;
+  const batteryAnnualFixedOM = batteryMW * batteryFixedOM;
+  const batteryAnnualCost = batteryAnnualCapex + batteryAnnualFixedOM;
+  const batteryLcoe = (totalBatteryDischargeMWh > 0)
+    ? batteryAnnualCost / (totalBatteryDischargeMWh / HOURS_PER_YEAR)
+    : 0;
+  const batteryCapexLcoe = (totalBatteryDischargeMWh > 0)
+    ? batteryAnnualCapex / (totalBatteryDischargeMWh / HOURS_PER_YEAR)
+    : 0;
+  const batteryOpexLcoe = (totalBatteryDischargeMWh > 0)
+    ? batteryAnnualFixedOM / (totalBatteryDischargeMWh / HOURS_PER_YEAR)
+    : 0;
 
-  // Summarize each asset's annual cost
-  // Gas
-  const gasAnnualCost = gasAnnualCapex + gasFixedOMTotal + totalGasFuelCost + totalGasVarOMCost;
-  // Solar
-  const solarAnnualCost = solarAnnualCapex + solarFixedOMTotal;
-  // Battery
-  const batteryAnnualCost = batteryAnnualCapex + batteryFixedOMTotal;
-
-  // LCOE for each (GBP/MWh)
-  // We'll divide each by the total MWh that asset actually produced or contributed
-  // For gas, that's totalGasMWh
-  // For solar, totalSolarMWh
-  // For battery, totalBatteryMWh (though battery cycles come from solar, but let's keep it simple)
-  const gasLcoe = totalGasMWh > 0 ? gasAnnualCost / (totalGasMWh / HOURS_PER_YEAR) : 0;
-  const solarLcoe = totalSolarMWh > 0 ? solarAnnualCost / (totalSolarMWh / HOURS_PER_YEAR) : 0;
-  const batteryLcoe = totalBatteryMWh > 0 ? batteryAnnualCost / (totalBatteryMWh / HOURS_PER_YEAR) : 0;
-
-  // Weighted total LCOE => (Total annual cost) / (Total MWh / 8760)
+  // d) System LCOE => sum of each tech's "annual cost" / total load
+  //    This means we add them up as if each has its own annual cost from its CRF.
   const totalAnnualCost = gasAnnualCost + solarAnnualCost + batteryAnnualCost;
   const systemLcoe = totalAnnualCost / ( (totalDemandMWh / HOURS_PER_YEAR) );
 
   // === 5) Update Charts and Output ===
-  updateAnnualMixChart(totalSolarMWh, totalBatteryMWh, totalGasMWh);
-  updateYearlyProfileChart(solarGen, batteryGen, gasGen);
-  updateJanChart(solarGen, batteryGen, gasGen);
-  updateJulChart(solarGen, batteryGen, gasGen);
-  updateLcoeBreakdownChart(gasLcoe, solarLcoe, batteryLcoe, systemLcoe);
+  updateAnnualMixChart(totalSolarMWh, totalBatteryDischargeMWh, totalGasMWh);
+  updateYearlyProfileChart(solarFlow, batteryFlow, gasFlow);
+  updateJanChart(solarFlow, batteryFlow, gasFlow);
+  updateJulChart(solarFlow, batteryFlow, gasFlow);
+  updateLcoeBreakdownChart({
+    gasCapex: gasCapexLcoe, gasOpex: gasOpexLcoe,
+    solarCapex: solarCapexLcoe, solarOpex: solarOpexLcoe,
+    batteryCapex: batteryCapexLcoe, batteryOpex: batteryOpexLcoe
+  });
 
-  // Fill summary text
+  // Summary
   const summaryDiv = document.getElementById("summary");
   summaryDiv.innerHTML = `
-    <p><strong>Total Generation:</strong> ${Math.round(totalDemandMWh).toLocaleString()} MWh</p>
+    <p><strong>Total Demand Met:</strong> ${totalDemandMWh.toLocaleString()} MWh</p>
     <p><strong>Solar Generation:</strong> ${Math.round(totalSolarMWh).toLocaleString()} MWh</p>
-    <p><strong>Battery Discharge:</strong> ${Math.round(totalBatteryMWh).toLocaleString()} MWh</p>
+    <p><strong>Battery Discharge:</strong> ${Math.round(totalBatteryDischargeMWh).toLocaleString()} MWh</p>
     <p><strong>Gas Generation:</strong> ${Math.round(totalGasMWh).toLocaleString()} MWh</p>
     <p><strong>System LCOE:</strong> ${systemLcoe.toFixed(2)} GBP/MWh</p>
-    <p><em>(Gas LCOE: ${gasLcoe.toFixed(2)}, Solar LCOE: ${solarLcoe.toFixed(2)}, Battery LCOE: ${batteryLcoe.toFixed(2)})</em></p>
+    <p>
+      <em>
+        Gas LCOE: ${gasLcoe.toFixed(2)}, 
+        Solar LCOE: ${solarLcoe.toFixed(2)}, 
+        Battery LCOE: ${batteryLcoe.toFixed(2)}
+      </em>
+    </p>
   `;
 }
 
-/**
- * Helper: Summation of array
- */
+/** Array sum helper */
 function sumArray(arr) {
-  return arr.reduce((a, b) => a + b, 0);
+  return arr.reduce((a,b) => a + b, 0);
 }
 
-/**
- * Capital Recovery Factor
- */
+/** Capital Recovery Factor */
 function calcCRF(rate, years) {
   if (rate === 0) return 1 / years;
   const top = rate * Math.pow(1 + rate, years);
@@ -213,24 +208,25 @@ function calcCRF(rate, years) {
   return top / bot;
 }
 
-/**
- * Update Annual Mix Chart
- */
+/** === Charting === */
+
+// 1) Annual Mix
 let annualMixChart;
 function updateAnnualMixChart(solarMWh, batteryMWh, gasMWh) {
   const total = solarMWh + batteryMWh + gasMWh;
-  const solarPct = (solarMWh / total) * 100;
-  const batteryPct = (batteryMWh / total) * 100;
-  const gasPct = (gasMWh / total) * 100;
-
   const ctx = document.getElementById("annualMixChart").getContext("2d");
   if (annualMixChart) annualMixChart.destroy();
+
   annualMixChart = new Chart(ctx, {
     type: "pie",
     data: {
       labels: ["Solar", "Battery", "Gas"],
       datasets: [{
-        data: [solarPct, batteryPct, gasPct],
+        data: [
+          (solarMWh / total) * 100,
+          (batteryMWh / total) * 100,
+          (gasMWh / total) * 100
+        ],
         backgroundColor: ["#f4d44d", "#4db6e4", "#f45d5d"]
       }]
     },
@@ -245,39 +241,37 @@ function updateAnnualMixChart(solarMWh, batteryMWh, gasMWh) {
   });
 }
 
-/**
- * Update Yearly Profile Chart (stacked area or bar)
- */
+// 2) Yearly Profile
 let yearlyProfileChart;
-function updateYearlyProfileChart(solarGen, batteryGen, gasGen) {
+function updateYearlyProfileChart(solarFlow, batteryFlow, gasFlow) {
   const ctx = document.getElementById("yearlyProfileChart").getContext("2d");
   if (yearlyProfileChart) yearlyProfileChart.destroy();
 
   yearlyProfileChart = new Chart(ctx, {
     type: "line",
     data: {
-      labels: [...Array(HOURS_PER_YEAR).keys()], // 0..8759
+      labels: [...Array(HOURS_PER_YEAR).keys()],
       datasets: [
         {
-          label: "Solar",
-          data: solarGen,
+          label: "Solar (MWh/h)",
+          data: solarFlow,
           borderColor: "#f4d44d",
-          backgroundColor: "#f4d44d",
-          fill: true
+          backgroundColor: "#f4d44d22",
+          fill: false
         },
         {
-          label: "Battery",
-          data: batteryGen,
+          label: "Battery (MWh/h) (+ = discharge, - = charge)",
+          data: batteryFlow,
           borderColor: "#4db6e4",
-          backgroundColor: "#4db6e4",
-          fill: true
+          backgroundColor: "#4db6e422",
+          fill: false
         },
         {
-          label: "Gas",
-          data: gasGen,
+          label: "Gas (MWh/h)",
+          data: gasFlow,
           borderColor: "#f45d5d",
-          backgroundColor: "#f45d5d",
-          fill: true
+          backgroundColor: "#f45d5d22",
+          fill: false
         }
       ]
     },
@@ -285,149 +279,141 @@ function updateYearlyProfileChart(solarGen, batteryGen, gasGen) {
       responsive: true,
       scales: {
         x: {
-          display: true,
           title: { display: true, text: "Hour of Year" }
         },
         y: {
-          display: true,
-          title: { display: true, text: "Generation (MWh/h)" }
+          title: { display: true, text: "Power (MWh/h)" }
         }
       }
     }
   });
 }
 
-/**
- * Update January Profile Chart
- * Let's look at hours 0..168 (first week of Jan)
- */
+// 3) January
 let janProfileChart;
-function updateJanChart(solarGen, batteryGen, gasGen) {
+function updateJanChart(solarFlow, batteryFlow, gasFlow) {
   const ctx = document.getElementById("janProfileChart").getContext("2d");
   if (janProfileChart) janProfileChart.destroy();
 
   const janStart = 0;
-  const janEnd = 24 * 7; // first 7 days
+  const janEnd = 24*7; // first 7 days
   const labels = [...Array(janEnd - janStart).keys()];
 
   janProfileChart = new Chart(ctx, {
-    type: "bar",
+    type: "line",
     data: {
-      labels: labels,
+      labels,
       datasets: [
         {
-          label: "Solar",
-          data: solarGen.slice(janStart, janEnd),
-          backgroundColor: "#f4d44d",
-          stack: "stack"
+          label: "Solar (MWh/h)",
+          data: solarFlow.slice(janStart, janEnd),
+          borderColor: "#f4d44d",
+          fill: false
         },
         {
-          label: "Battery",
-          data: batteryGen.slice(janStart, janEnd),
-          backgroundColor: "#4db6e4",
-          stack: "stack"
+          label: "Battery (MWh/h)",
+          data: batteryFlow.slice(janStart, janEnd),
+          borderColor: "#4db6e4",
+          fill: false
         },
         {
-          label: "Gas",
-          data: gasGen.slice(janStart, janEnd),
-          backgroundColor: "#f45d5d",
-          stack: "stack"
+          label: "Gas (MWh/h)",
+          data: gasFlow.slice(janStart, janEnd),
+          borderColor: "#f45d5d",
+          fill: false
         }
       ]
     },
     options: {
       responsive: true,
       scales: {
-        x: {
-          stacked: true,
-          title: { display: true, text: "Hour of January" }
-        },
-        y: {
-          stacked: true,
-          title: { display: true, text: "MWh/h" }
-        }
+        y: { title: { display: true, text: "Power (MWh/h)" } },
+        x: { title: { display: true, text: "Hour of January" } }
       }
     }
   });
 }
 
-/**
- * Update July Profile Chart
- * Let's look at ~ mid-July: hour 24*31*6=4464 to 4464+168 for a random example
- * (Simplified approach)
- */
+// 4) July
 let julProfileChart;
-function updateJulChart(solarGen, batteryGen, gasGen) {
+function updateJulChart(solarFlow, batteryFlow, gasFlow) {
   const ctx = document.getElementById("julProfileChart").getContext("2d");
   if (julProfileChart) julProfileChart.destroy();
 
-  const julStart = 24 * (31 + 28 + 31 + 30 + 31 + 30); // end of June
-  const julEnd = julStart + (24 * 7);
+  const julStart = 24*(31+28+31+30+31+30); // end of June
+  const julEnd = julStart + 24*7;
   const labels = [...Array(julEnd - julStart).keys()];
 
   julProfileChart = new Chart(ctx, {
-    type: "bar",
+    type: "line",
     data: {
-      labels: labels,
+      labels,
       datasets: [
         {
-          label: "Solar",
-          data: solarGen.slice(julStart, julEnd),
-          backgroundColor: "#f4d44d",
-          stack: "stack"
+          label: "Solar (MWh/h)",
+          data: solarFlow.slice(julStart, julEnd),
+          borderColor: "#f4d44d",
+          fill: false
         },
         {
-          label: "Battery",
-          data: batteryGen.slice(julStart, julEnd),
-          backgroundColor: "#4db6e4",
-          stack: "stack"
+          label: "Battery (MWh/h)",
+          data: batteryFlow.slice(julStart, julEnd),
+          borderColor: "#4db6e4",
+          fill: false
         },
         {
-          label: "Gas",
-          data: gasGen.slice(julStart, julEnd),
-          backgroundColor: "#f45d5d",
-          stack: "stack"
+          label: "Gas (MWh/h)",
+          data: gasFlow.slice(julStart, julEnd),
+          borderColor: "#f45d5d",
+          fill: false
         }
       ]
     },
     options: {
       responsive: true,
       scales: {
-        x: {
-          stacked: true,
-          title: { display: true, text: "Hour of July" }
-        },
-        y: {
-          stacked: true,
-          title: { display: true, text: "MWh/h" }
-        }
+        y: { title: { display: true, text: "Power (MWh/h)" } },
+        x: { title: { display: true, text: "Hour of July" } }
       }
     }
   });
 }
 
-/**
- * Update LCOE Breakdown Chart
- */
+// 5) LCOE Breakdown (stacked bar: Capex vs Opex for Gas, Solar, Battery)
 let lcoeBreakdownChart;
-function updateLcoeBreakdownChart(gasLcoe, solarLcoe, batteryLcoe, systemLcoe) {
+function updateLcoeBreakdownChart(values) {
+  const { 
+    gasCapex, gasOpex,
+    solarCapex, solarOpex,
+    batteryCapex, batteryOpex
+  } = values;
+
   const ctx = document.getElementById("lcoeBreakdownChart").getContext("2d");
   if (lcoeBreakdownChart) lcoeBreakdownChart.destroy();
 
   lcoeBreakdownChart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels: ["Gas", "Solar", "Battery", "System Avg"],
-      datasets: [{
-        label: "GBP/MWh",
-        data: [gasLcoe, solarLcoe, batteryLcoe, systemLcoe],
-        backgroundColor: ["#f45d5d", "#f4d44d", "#4db6e4", "#888"]
-      }]
+      labels: ["Gas", "Solar", "Battery"],
+      datasets: [
+        {
+          label: "Capex (GBP/MWh)",
+          data: [gasCapex, solarCapex, batteryCapex],
+          backgroundColor: "#5555ff"
+        },
+        {
+          label: "Opex (GBP/MWh)",
+          data: [gasOpex, solarOpex, batteryOpex],
+          backgroundColor: "#aaaaaa"
+        }
+      ]
     },
     options: {
       responsive: true,
       scales: {
-        y: {
+        x: { stacked: true },
+        y: { 
+          stacked: true,
           beginAtZero: true,
           title: { display: true, text: "GBP/MWh" }
         }
