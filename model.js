@@ -111,13 +111,13 @@ function runModel() {
   const gasAnnualFuel = totalGasMWh * gasFuel;
   const gasAnnualCost = gasAnnualCapex + gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel;
   const gasLcoe = (totalGasMWh > 0) 
-    ? gasAnnualCost / (totalGasMWh / HOURS_PER_YEAR) 
+    ? gasAnnualCost / (totalGasMWh ) 
     : 0;
   const gasCapexLcoe = (totalGasMWh > 0) 
-    ? gasAnnualCapex / (totalGasMWh / HOURS_PER_YEAR) 
+    ? gasAnnualCapex / (totalGasMWh ) 
     : 0;
   const gasOpexLcoe = (totalGasMWh > 0) 
-    ? (gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel) / (totalGasMWh / HOURS_PER_YEAR) 
+    ? (gasAnnualFixedOM + gasAnnualVarOM + gasAnnualFuel) / (totalGasMWh ) 
     : 0;
 
   // b) Solar => capacity in MW, CapEx in GBP/kW => multiply by 1000
