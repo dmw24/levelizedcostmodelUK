@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Levelized System Cost Calculator</title>
 
-  <!-- Link to your existing CSS file -->
+  <!-- Link to your existing style.css -->
   <link rel="stylesheet" href="style.css" />
 
   <!-- Chart.js + PapaParse + Tippy.js -->
@@ -53,9 +53,10 @@
   <header class="container">
     <h1>Levelized System Cost Calculator</h1>
     <p class="disclaimer">
-      This interactive tool lets you explore different combinations of solar and battery storage alongside a 1 GW gas plant to deliver year-round baseload power for the UK electricity market. It uses solar generation profiles from Southern England to reflect regional conditions.
+      This is a tool to play around with different amounts of solar and batteries on top of a gas plant 
+      to supply 1 GW baseload power all year round. The site is set in Southern England.
       <br />
-      Note: All figures are approximate and intended for demonstration purposes only.
+      Note: All numbers are approximate and for demonstration only.
     </p>
   </header>
 
@@ -171,9 +172,9 @@
           <canvas id="julProfileChart"></canvas>
         </div>
 
-        <!-- Final stacked bar: Gas/Solar/Battery for [Capex, Opex, Total] -->
+        <!-- Final stacked bar: Gas/Solar/Battery for [Capex, Opex, Total], plus summary below -->
         <div class="chart-box">
-          <h3>Levelized System Cost</h3>
+          <h3>Levelized System Cost (Waterfall)</h3>
           <canvas id="systemCostChart"></canvas>
           <div id="levelizedCostResult" style="margin-top:10px; font-weight:600;"></div>
         </div>
