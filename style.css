@@ -1,12 +1,200 @@
 :root {
-  /* ...existing variables... */
+  /* Theme variables */
+  --slate-blue: #192238;
+  --off-white: #eceff5;
+  --white: #fff;
+  --grey-blue: #d6dbe9;
+  --dark-grey: #959aa7;
+  --color_theme_accent: #13ce74;
+  --background_pop_darken: #11b767;
+
+  /* Additional button colors */
   --button-green: #13ce74;
   --button-green-hover: #11b767;
 }
 
-/* ...existing CSS... */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
-/* Style for the "Run Model" button */
+body {
+  background: #f7f7f7; /* VERY LIGHT gray background */
+  color: var(--slate-blue);
+  font-family: Poppins, sans-serif;
+  font-size: 15px;
+  line-height: 23px;
+  margin: 0;
+}
+
+/* HEADER */
+header.container {
+  padding-bottom: 0.5rem;
+  background: var(--white);
+  border-bottom: 1px solid var(--grey-blue);
+  margin-bottom: 1rem;
+}
+header.container h1 {
+  margin: 20px 0;
+  font-size: 3.2em;
+  font-weight: 500;
+  line-height: 1.2em;
+  position: relative;
+}
+header.container h1::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 1em;
+  background: var(--color_theme_accent);
+  margin-right: 10px;
+  vertical-align: middle;
+}
+header.container p.disclaimer {
+  font-size: 0.9em;
+  color: var(--dark-grey);
+  margin: 0 0 1rem 0;
+}
+
+/* Main container around everything */
+.container {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px;
+  position: relative;
+  background: var(--white);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+/* The main layout: sidebar + content */
+.sim-container {
+  display: flex;
+  gap: 20px;
+  height: auto; /* let content scroll if needed */
+}
+
+/* SIDEBAR */
+#sidebar {
+  width: 320px;
+  background: var(--white);
+  padding: 1rem;
+  padding-bottom: 30px;
+  border: 1px solid var(--grey-blue);
+  border-right: none;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  overflow-y: auto;
+}
+
+/* CONTENT AREA */
+#content {
+  flex-grow: 1;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--grey-blue);
+  border-radius: 8px;
+}
+
+/* Chart grid */
+#chartSection {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 20px;
+}
+
+/* Each chart or section box */
+.chart-box {
+  background: var(--white);
+  border: 1px solid var(--grey-blue);
+  border-radius: 8px;
+  padding: 1rem;
+}
+.chart-box h3 {
+  margin-top: 0;
+}
+
+/* Force charts to ~300px high for consistency */
+.chart-box canvas {
+  display: block;
+  width: 100%;
+  height: 300px !important;
+}
+
+/* Collapsible group toggles in the sidebar */
+#sidebar h2 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.8em;
+  font-weight: 500;
+  border-bottom: 1px solid var(--grey-blue);
+  padding-bottom: 0.5rem;
+}
+.group-title {
+  margin: 15px 0 10px 0;
+  font-size: 1.5em;
+  font-weight: 500;
+  cursor: pointer;
+}
+.group-title::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 1.2em;
+  background: var(--color_theme_accent);
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.group-title::after {
+  content: "►";
+  float: right;
+  font-size: 0.8em;
+  vertical-align: middle;
+}
+.group-title.expanded::after {
+  content: "▼";
+}
+.group .group-content {
+  display: none;
+  margin-top: 10px;
+  margin-bottom: 20px;
+  padding-left: 0;
+}
+.group {
+  margin-bottom: 20px;
+}
+
+/* Fieldset / form inputs */
+fieldset {
+  margin-bottom: 20px;
+}
+fieldset legend {
+  border-left: 4px solid var(--color_theme_accent);
+  padding-left: 8px;
+  font-size: 1.1em;
+  margin-bottom: 10px;
+}
+fieldset label {
+  border-left: 2px solid var(--grey-blue);
+  padding-left: 5px;
+  margin-bottom: 5px;
+  display: block;
+  font-weight: 600;
+}
+input[type="number"],
+select {
+  width: 100%;
+  padding: 0.4rem;
+  border: 1px solid var(--grey-blue);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  background: var(--white);
+  color: var(--slate-blue);
+}
+
+/* RUN MODEL BUTTON styling */
 .run-model-btn {
   display: block;
   width: 100%;
@@ -22,9 +210,36 @@
   text-align: center;
   transition: background-color 0.2s;
 }
-
 .run-model-btn:hover {
   background-color: var(--button-green-hover);
 }
 
-/* ...rest of your existing CSS... */
+/* Responsive tweak for narrower screens */
+@media screen and (max-width: 767px) {
+  .sim-container {
+    flex-direction: column;
+    height: auto;
+  }
+  #sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--grey-blue);
+  }
+}
+
+/* FOOTER */
+footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: var(--white);
+  border-top: 1px solid #000;
+  text-align: center;
+  padding: 5px;
+  font-size: 0.8em;
+  color: var(--dark-grey);
+}
+footer strong {
+  font-weight: bold;
+}
