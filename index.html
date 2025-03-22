@@ -5,328 +5,53 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LCOE Calculator</title>
 
-  <style>
-    :root {
-      /* Original theme variables */
-      --slate-blue: #192238;
-      --off-white: #eceff5;
-      --white: #fff;
-      --mid-slate-blue: #414f6f;
-      --jet-black: #000;
-      --ember-green: #13ce74;
-      --light-ember-green: #1de987;
-      --grey-blue: #d6dbe9;
-      --dark-grey: #959aa7;
-      --dark-grey-blue: #626e88;
-      --transparent: #fff0;
-      --ash-blue: #dee6ef;
-      /* New theme variables from provided code */
-      --color_theme_bg_pop: #13ce74;
-      --background_pop: #13ce74;
-      --color_theme_bg_web: #ffffff;
-      --cover_bg_color: #ffffff;
-      --background_pop_darken: #11b767;
-      --print_on_pop: #ffffff;
-      --color_theme_bg_pop_darken: #11b767;
-      --color_theme_print_on_pop: #ffffff;
-      --border_subtle: rgba(204, 204, 204, 0.5);
-      --background_subtle: rgba(220, 248, 234, 0.4);
-      --print_pop: #13ce74;
-      --color_theme_accent: #13ce74;
-      --cover_print_primary: #363737;
-      --cover_print_secondary: #757575;
-      --cover_print_tertiary: #b6b6b6;
-      --cover_border_color: #13ce74;
-      --font_family_body_preset: 'SF Pro Display', -apple-system, system-ui, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
-      --font_weight_body_preset: 400;
-      --font_preset_body: sans;
-      --web_bg_color: #ffffff;
-      --background_contrast_1: #f0f0f0;
-      --color_theme_bg_contrast_1: #f0f0f0;
-      --background_contrast_2: #dddddd;
-      --color_theme_bg_contrast_2: #dddddd;
-      --background_contrast_3: #b7b7b7;
-      --color_theme_bg_contrast_3: #b7b7b7;
-      --background_contrast_4: #929292;
-      --color_theme_bg_contrast_4: #929292;
-      --background_contrast_5: #515151;
-      --color_theme_bg_contrast_5: #515151;
-      --color_theme_detail: #e6e6e6;
-      --background_contrast_pop: rgba(19, 206, 116, 0.4);
-      --color_theme_bg_contrast_pop: rgba(19, 206, 116, 0.4);
-      --input_background: #ffffff;
-      --cover_input_background: #ffffff;
-      --tooltip_background: #191919;
-    }
+  <!-- External CSS -->
+  <link rel="stylesheet" href="style.css" />
 
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-    }
-
-    body {
-      background: #f7f7f7; /* VERY LIGHT gray background */
-      color: var(--slate-blue);
-      font-family: Poppins, sans-serif;
-      font-size: 15px;
-      line-height: 23px;
-      margin: 0;
-    }
-
-    header.container {
-      padding-bottom: 0.5rem;
-      background: var(--white);
-      border-bottom: 1px solid var(--grey-blue);
-      margin-bottom: 1rem;
-    }
-    header.container h1 {
-      margin: 20px 0;
-      font-size: 3.2em;
-      font-weight: 500;
-      line-height: 1.2em;
-      position: relative;
-    }
-    header.container h1::before {
-      content: "";
-      display: inline-block;
-      width: 6px;
-      height: 1em;
-      background: var(--color_theme_accent);
-      margin-right: 10px;
-      vertical-align: middle;
-    }
-    header.container p.disclaimer {
-      font-size: 0.9em;
-      color: var(--dark-grey);
-      margin: 0 0 1rem 0;
-    }
-
-    h2 {
-      margin: 20px 0;
-      font-size: 2.5em;
-      font-weight: 500;
-      line-height: 1.2em;
-    }
-
-    /* Title above sidebar groups */
-    #sidebar h2 {
-      margin-top: 0;
-      margin-bottom: 1rem;
-      font-size: 1.8em;
-      font-weight: 500;
-      border-bottom: 1px solid var(--grey-blue);
-      padding-bottom: 0.5rem;
-    }
-
-    /* Group titles (majors) styling without boxes, with toggle arrow and extra spacing */
-    .group-title {
-      margin: 15px 0 10px 0;
-      font-size: 1.5em;
-      font-weight: 500;
-      cursor: pointer;
-    }
-    .group-title::before {
-      content: "";
-      display: inline-block;
-      width: 6px;
-      height: 1.2em;
-      background: var(--color_theme_accent);
-      margin-right: 8px;
-      vertical-align: middle;
-    }
-    .group-title::after {
-      content: "►";
-      float: right;
-      font-size: 0.8em;
-      vertical-align: middle;
-    }
-    .group-title.expanded::after {
-      content: "▼";
-    }
-    /* Default state: groups collapsed, no grey background or border */
-    .group .group-content {
-      display: none;
-      margin-top: 10px;
-      margin-bottom: 20px;
-      padding-left: 0;
-    }
-    .group {
-      margin-bottom: 20px;
-    }
-
-    fieldset {
-      margin-bottom: 20px;
-    }
-    fieldset legend {
-      border-left: 4px solid var(--color_theme_accent);
-      padding-left: 8px;
-      font-size: 1.1em;
-      margin-bottom: 10px;
-    }
-    fieldset label {
-      border-left: 2px solid var(--grey-blue);
-      padding-left: 5px;
-      margin-bottom: 5px;
-      display: block;
-      font-weight: 600;
-    }
-
-    input[type="number"],
-    select {
-      width: 100%;
-      padding: 0.4rem;
-      border: 1px solid var(--grey-blue);
-      border-radius: 4px;
-      font-size: 0.95rem;
-      background: var(--white);
-      color: var(--slate-blue);
-    }
-
-    .container {
-      width: 100%;
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 20px;
-      position: relative;
-      background: var(--white);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-    }
-
-    .sim-container {
-      display: flex;
-      /* If you find content is cut off, remove or comment out this height */
-      height: calc(100vh - 150px);
-      gap: 20px;
-    }
-
-    /* Sidebar styling */
-    #sidebar {
-      width: 320px;
-      background: var(--white);
-      padding: 1rem;
-      padding-bottom: 30px;
-      border: 1px solid var(--grey-blue);
-      border-right: none;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      overflow-y: auto;
-    }
-
-    /* Content area => 2x3 grid for 5 charts + summary */
-    #content {
-      flex-grow: 1;
-      padding: 1rem;
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      grid-template-rows: auto auto auto; /* 3 rows => 5 charts + summary */
-      gap: 20px;
-      border: 1px solid var(--grey-blue);
-      border-radius: 8px;
-    }
-
-    .chart-box {
-      background: var(--white);
-      border: 1px solid var(--grey-blue);
-      border-radius: 6px;
-      padding: 1rem;
-      display: flex;
-      flex-direction: column;
-      /* Let charts fill up */
-    }
-    .chart-box h3 {
-      margin: 0 0 0.5rem;
-      font-size: 1.2em;
-    }
-    .chart-container {
-      flex: 1;
-      position: relative;
-      width: 100%;
-      height: 100%;
-    }
-    .chart-container canvas {
-      width: 100% !important;
-      height: 100% !important;
-    }
-
-    /* Footer banner */
-    footer {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      background: var(--white);
-      border-top: 1px solid #000;
-      text-align: center;
-      padding: 5px;
-      font-size: 0.8em;
-      color: var(--dark-grey);
-    }
-    footer strong {
-      font-weight: bold;
-    }
-
-    @media screen and (max-width: 767px) {
-      .sim-container {
-        flex-direction: column;
-        height: auto;
-      }
-      #sidebar {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid var(--grey-blue);
-      }
-      #content {
-        grid-template-columns: 1fr; /* single column if narrower screen */
-        grid-template-rows: auto;
-      }
-    }
-  </style>
-
-  <!-- Chart.js (for charts) -->
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Tippy.js + Popper.js (for tooltips if needed) -->
+
+  <!-- Tippy.js + Popper.js (for tooltips, if needed) -->
   <script src="https://unpkg.com/@popperjs/core@2"></script>
   <script src="https://unpkg.com/tippy.js@6"></script>
   <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale.css"/>
 
   <script>
-    // Set Chart.js default font family and size
+    // Set Chart.js default font family and size (Poppins, 15px)
     Chart.defaults.font.family = 'Poppins, sans-serif';
     Chart.defaults.font.size = 15;
   </script>
 </head>
-
 <body>
   <header class="container">
     <h1>LCOE Calculator</h1>
     <p class="disclaimer">
-      This is a high-level LCOE model, built with AI assistance. All numbers and assumptions are illustrative only
+      This is a high-level LCOE model. All numbers and assumptions are for demonstration only 
       and should not be taken as precise forecasts.
     </p>
   </header>
 
   <div class="container sim-container">
-    <!-- Sidebar with collapsible groups -->
+    <!-- SIDEBAR -->
     <div id="sidebar">
       <h2>Model parameters</h2>
 
-      <!-- System Config Group -->
+      <!-- Group: System Configuration -->
       <div class="group">
         <h3 class="group-title collapsed" onclick="toggleGroup(this)">System Configuration</h3>
         <div class="group-content">
           <fieldset>
             <legend>Capacities</legend>
-            <label for="solarCap" data-tippy-content="Solar capacity in GW">Solar Capacity (GW):</label>
+            <label for="solarCap">Solar Capacity (GW):</label>
             <input type="number" id="solarCap" value="6" step="0.1" />
 
-            <label for="batteryCap" data-tippy-content="Battery capacity in GWh">Battery Capacity (GWh):</label>
+            <label for="batteryCap">Battery Capacity (GWh):</label>
             <input type="number" id="batteryCap" value="10" step="1" />
           </fieldset>
         </div>
       </div>
 
-      <!-- Assumptions Group -->
+      <!-- Group: Assumptions -->
       <div class="group">
         <h3 class="group-title collapsed" onclick="toggleGroup(this)">Assumptions</h3>
         <div class="group-content">
@@ -371,7 +96,7 @@
             <label for="waccFossil">WACC Fossil (%):</label>
             <input type="number" id="waccFossil" value="8" step="0.1" />
 
-            <label for="waccRenew">WACC Renewables (%):</label>
+            <label for="waccRenew">WACC Renew (%):</label>
             <input type="number" id="waccRenew" value="5" step="0.1" />
 
             <label for="lifetimeFossil">Lifetime (fossil) (yrs):</label>
@@ -384,33 +109,12 @@
       </div>
     </div>
 
-    <!-- Content area => 2x3 grid => 5 charts + summary -->
+    <!-- CONTENT: charts + update button -->
     <div id="content">
-      <!-- 1) Yearly Profile -->
-      <div class="chart-box">
-        <h3>Yearly Profile</h3>
-        <div class="chart-container">
-          <canvas id="yearlyChart"></canvas>
-        </div>
-      </div>
+      <!-- Update button above the charts -->
+      <button id="updateBtn" style="margin-bottom: 1rem;">Update</button>
 
-      <!-- 2) January -->
-      <div class="chart-box">
-        <h3>January (7 days)</h3>
-        <div class="chart-container">
-          <canvas id="janChart"></canvas>
-        </div>
-      </div>
-
-      <!-- 3) July -->
-      <div class="chart-box">
-        <h3>July (7 days)</h3>
-        <div class="chart-container">
-          <canvas id="julChart"></canvas>
-        </div>
-      </div>
-
-      <!-- 4) Generation Mix (Horizontal) -->
+      <!-- Chart 1: Generation Mix (horizontal) -->
       <div class="chart-box">
         <h3>Generation Mix</h3>
         <div class="chart-container">
@@ -418,7 +122,7 @@
         </div>
       </div>
 
-      <!-- 5) LCOE Breakdown (Horizontal) -->
+      <!-- Chart 2: LCOE Breakdown (horizontal) -->
       <div class="chart-box">
         <h3>LCOE Breakdown</h3>
         <div class="chart-container">
@@ -426,10 +130,28 @@
         </div>
       </div>
 
-      <!-- 6) Summary Box -->
+      <!-- Chart 3: Yearly Profile (stacked bar) -->
       <div class="chart-box">
-        <h3>Summary</h3>
-        <div id="summary"></div>
+        <h3>Yearly Profile</h3>
+        <div class="chart-container">
+          <canvas id="yearlyChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 4: January (first 7 days) -->
+      <div class="chart-box">
+        <h3>January (7 days)</h3>
+        <div class="chart-container">
+          <canvas id="janChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 5: July (7 days) -->
+      <div class="chart-box">
+        <h3>July (7 days)</h3>
+        <div class="chart-container">
+          <canvas id="julChart"></canvas>
+        </div>
       </div>
     </div>
   </div>
@@ -454,12 +176,13 @@
     }
 
     document.addEventListener("DOMContentLoaded", function() {
-      // Collapse all groups by default
+      // Collapse all .group by default
       document.querySelectorAll('.group-title').forEach(el => {
         el.classList.add("collapsed");
         const content = el.nextElementSibling;
         content.style.display = "none";
       });
+
       // Initialize Tippy if needed
       tippy('[data-tippy-content]', {
         animation: 'scale',
@@ -468,7 +191,7 @@
     });
   </script>
 
-  <!-- Link to your model.js (the LCOE logic + charts) -->
+  <!-- Our main LCOE logic -->
   <script src="model.js"></script>
 </body>
 </html>
