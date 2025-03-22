@@ -1,5 +1,4 @@
 :root {
-  /* Theme variables */
   --slate-blue: #192238;
   --off-white: #eceff5;
   --white: #fff;
@@ -7,10 +6,6 @@
   --dark-grey: #959aa7;
   --color_theme_accent: #13ce74;
   --background_pop_darken: #11b767;
-
-  /* Additional button colors */
-  --button-green: #13ce74;
-  --button-green-hover: #11b767;
 }
 
 *,
@@ -36,8 +31,8 @@ header.container {
   margin-bottom: 1rem;
 }
 header.container h1 {
-  margin: 10px 0;
-  font-size: 2.6em; /* slightly smaller to save space */
+  margin: 20px 0;
+  font-size: 3.2em;
   font-weight: 500;
   line-height: 1.2em;
   position: relative;
@@ -52,91 +47,116 @@ header.container h1::before {
   vertical-align: middle;
 }
 header.container p.disclaimer {
-  font-size: 0.85em;
+  font-size: 0.9em;
   color: var(--dark-grey);
-  margin: 0 0 0.5rem 0; /* smaller spacing */
+  margin: 0 0 1rem 0;
 }
 
-/* Main container around everything */
+/* Container around everything */
 .container {
   width: 100%;
   max-width: 1100px;
-  margin: 10px auto;  /* smaller margin */
-  padding: 10px;      /* smaller padding */
+  margin: 0 auto;
+  padding: 20px;
   position: relative;
   background: var(--white);
-  box-shadow: none;   /* remove box-shadow to save space */
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 }
 
 /* The main layout: sidebar + content */
 .sim-container {
   display: flex;
-  gap: 10px; /* smaller gap */
-  height: auto; /* let content scroll if needed */
+  gap: 20px;
+  height: auto; /* Let content scroll if needed */
 }
 
 /* SIDEBAR */
 #sidebar {
-  width: 300px; /* slightly narrower */
+  width: 320px;
   background: var(--white);
-  padding: 0.5rem; /* smaller padding */
+  padding: 1rem;
+  padding-bottom: 30px;
   border: 1px solid var(--grey-blue);
   border-right: none;
-  border-radius: 4px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
   overflow-y: auto;
 }
 
-/* CONTENT AREA */
+/* Content area */
 #content {
   flex-grow: 1;
-  padding: 0.5rem; /* smaller padding */
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--grey-blue);
-  border-radius: 4px;
+  border-radius: 8px;
 }
 
 /* Chart grid */
 #chartSection {
   display: grid;
-  /* Show more charts in a row by reducing min width and gap */
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 10px; /* smaller gap between charts */
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 20px;
 }
 
-/* Each chart or section box */
+/* Each chart box */
 .chart-box {
   background: var(--white);
   border: 1px solid var(--grey-blue);
-  border-radius: 4px;
-  padding: 0.5rem; /* smaller padding */
-  /* optional: remove border for an even denser look */
+  border-radius: 8px;
+  padding: 1rem;
 }
 .chart-box h3 {
   margin-top: 0;
-  margin-bottom: 0.5rem; /* less spacing */
-  font-size: 1.1em;
 }
-
-/* Force charts to ~200px high for a denser layout */
+/* Force charts to be ~300px high so they're not too big nor too small */
 .chart-box canvas {
   display: block;
   width: 100%;
-  height: 200px !important; /* reduce from 300px to 200px */
+  height: 300px !important;
 }
 
-/* Collapsible group toggles in the sidebar */
+/* Fieldset / form inputs */
+fieldset {
+  margin-bottom: 20px;
+}
+fieldset legend {
+  border-left: 4px solid var(--color_theme_accent);
+  padding-left: 8px;
+  font-size: 1.1em;
+  margin-bottom: 10px;
+}
+fieldset label {
+  border-left: 2px solid var(--grey-blue);
+  padding-left: 5px;
+  margin-bottom: 5px;
+  display: block;
+  font-weight: 600;
+}
+input[type="number"],
+select {
+  width: 100%;
+  padding: 0.4rem;
+  border: 1px solid var(--grey-blue);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  background: var(--white);
+  color: var(--slate-blue);
+}
+
+/* Collapsible group toggles */
 #sidebar h2 {
   margin-top: 0;
-  margin-bottom: 0.5rem;
-  font-size: 1.6em;
+  margin-bottom: 1rem;
+  font-size: 1.8em;
   font-weight: 500;
   border-bottom: 1px solid var(--grey-blue);
-  padding-bottom: 0.3rem;
+  padding-bottom: 0.5rem;
 }
 .group-title {
-  margin: 10px 0 5px 0;
-  font-size: 1.3em;
+  margin: 15px 0 10px 0;
+  font-size: 1.5em;
   font-weight: 500;
   cursor: pointer;
 }
@@ -160,61 +180,28 @@ header.container p.disclaimer {
 }
 .group .group-content {
   display: none;
-  margin-top: 5px;
-  margin-bottom: 10px;
+  margin-top: 10px;
+  margin-bottom: 20px;
   padding-left: 0;
 }
 .group {
-  margin-bottom: 10px;
+  margin-bottom: 20px;
 }
 
-/* Fieldset / form inputs */
-fieldset {
-  margin-bottom: 10px;
-}
-fieldset legend {
-  border-left: 4px solid var(--color_theme_accent);
-  padding-left: 6px;
-  font-size: 1em;
-  margin-bottom: 5px;
-}
-fieldset label {
-  border-left: 2px solid var(--grey-blue);
-  padding-left: 4px;
-  margin-bottom: 4px;
-  display: block;
-  font-weight: 600;
-  font-size: 0.9em;
-}
-input[type="number"],
-select {
+/* The "Run Model" button */
+#runModelBtn {
   width: 100%;
-  padding: 0.3rem;
-  border: 1px solid var(--grey-blue);
-  border-radius: 4px;
-  font-size: 0.85rem;
-  background: var(--white);
-  color: var(--slate-blue);
-}
-
-/* RUN MODEL BUTTON styling */
-.run-model-btn {
-  display: block;
-  width: 100%;
-  margin-top: 10px;
-  padding: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: white;
-  background-color: var(--button-green);
+  padding: 10px;
+  font-size: 1rem;
   border: none;
   border-radius: 4px;
+  background-color: var(--color_theme_accent);
+  color: var(--slate-blue);
   cursor: pointer;
-  text-align: center;
   transition: background-color 0.2s;
 }
-.run-model-btn:hover {
-  background-color: var(--button-green-hover);
+#runModelBtn:hover {
+  background-color: var(--background_pop_darken);
 }
 
 /* Responsive tweak for narrower screens */
@@ -239,8 +226,8 @@ footer {
   background: var(--white);
   border-top: 1px solid #000;
   text-align: center;
-  padding: 3px;
-  font-size: 0.75em;
+  padding: 5px;
+  font-size: 0.8em;
   color: var(--dark-grey);
 }
 footer strong {
