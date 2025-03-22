@@ -20,7 +20,6 @@
       --dark-grey-blue: #626e88;
       --transparent: #fff0;
       --ash-blue: #dee6ef;
-
       /* New theme variables from provided code */
       --color_theme_bg_pop: #13ce74;
       --background_pop: #13ce74;
@@ -193,8 +192,10 @@
       background: var(--white);
       box-shadow: 0 2px 6px rgba(0,0,0,0.05);
     }
+
     .sim-container {
       display: flex;
+      /* If you find content is cut off, remove or comment out this height */
       height: calc(100vh - 150px);
       gap: 20px;
     }
@@ -212,27 +213,26 @@
       overflow-y: auto;
     }
 
-    /* Content area */
+    /* Content area => 2x3 grid for 5 charts + summary */
     #content {
       flex-grow: 1;
       padding: 1rem;
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: auto auto auto; /* 3 rows => 5 charts + summary */
+      gap: 20px;
       border: 1px solid var(--grey-blue);
       border-radius: 8px;
     }
 
-    /* The chart boxes */
     .chart-box {
       background: var(--white);
       border: 1px solid var(--grey-blue);
       border-radius: 6px;
-      margin-bottom: 20px;
       padding: 1rem;
       display: flex;
       flex-direction: column;
-      /* Make chart fill up the box */
-      height: 100%;
+      /* Let charts fill up */
     }
     .chart-box h3 {
       margin: 0 0 0.5rem;
@@ -244,22 +244,9 @@
       width: 100%;
       height: 100%;
     }
-    /* Make the canvas fill the container */
     .chart-container canvas {
       width: 100% !important;
       height: 100% !important;
-    }
-
-    @media screen and (max-width: 767px) {
-      .sim-container {
-        flex-direction: column;
-        height: auto;
-      }
-      #sidebar {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid var(--grey-blue);
-      }
     }
 
     /* Footer banner */
@@ -278,11 +265,27 @@
     footer strong {
       font-weight: bold;
     }
+
+    @media screen and (max-width: 767px) {
+      .sim-container {
+        flex-direction: column;
+        height: auto;
+      }
+      #sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--grey-blue);
+      }
+      #content {
+        grid-template-columns: 1fr; /* single column if narrower screen */
+        grid-template-rows: auto;
+      }
+    }
   </style>
 
-  <!-- Chart.js (for LCOE charts) -->
+  <!-- Chart.js (for charts) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Tippy.js + Popper.js (for tooltips, if needed) -->
+  <!-- Tippy.js + Popper.js (for tooltips if needed) -->
   <script src="https://unpkg.com/@popperjs/core@2"></script>
   <script src="https://unpkg.com/tippy.js@6"></script>
   <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale.css"/>
@@ -298,32 +301,32 @@
   <header class="container">
     <h1>LCOE Calculator</h1>
     <p class="disclaimer">
-      This is a high-level LCOE model, built with AI assistance.
-      All numbers and assumptions are illustrative only and should not be taken as precise forecasts.
+      This is a high-level LCOE model, built with AI assistance. All numbers and assumptions are illustrative only
+      and should not be taken as precise forecasts.
     </p>
   </header>
 
   <div class="container sim-container">
-    <!-- SIDEBAR with collapsible groups -->
+    <!-- Sidebar with collapsible groups -->
     <div id="sidebar">
       <h2>Model parameters</h2>
 
-      <!-- Example group: System Config -->
+      <!-- System Config Group -->
       <div class="group">
         <h3 class="group-title collapsed" onclick="toggleGroup(this)">System Configuration</h3>
         <div class="group-content">
           <fieldset>
             <legend>Capacities</legend>
-            <label for="solarCap" data-tippy-content="Solar capacity in GW.">Solar Capacity (GW):</label>
+            <label for="solarCap" data-tippy-content="Solar capacity in GW">Solar Capacity (GW):</label>
             <input type="number" id="solarCap" value="6" step="0.1" />
 
-            <label for="batteryCap" data-tippy-content="Battery capacity in GWh.">Battery Capacity (GWh):</label>
+            <label for="batteryCap" data-tippy-content="Battery capacity in GWh">Battery Capacity (GWh):</label>
             <input type="number" id="batteryCap" value="10" step="1" />
           </fieldset>
         </div>
       </div>
 
-      <!-- Example group: Assumptions -->
+      <!-- Assumptions Group -->
       <div class="group">
         <h3 class="group-title collapsed" onclick="toggleGroup(this)">Assumptions</h3>
         <div class="group-content">
@@ -353,7 +356,7 @@
             <label for="gasVarOM">Gas Variable O&amp;M (GBP/MWh):</label>
             <input type="number" id="gasVarOM" value="4" step="1" />
 
-            <label for="gasFuel">Gas Fuel (GBP/MWh):</label>
+            <label for="gasFuel">Gas Fuel (GBP/MWh_fuel):</label>
             <input type="number" id="gasFuel" value="40" step="1" />
           </fieldset>
 
@@ -381,22 +384,52 @@
       </div>
     </div>
 
-    <!-- MAIN CONTENT: Two chart boxes with horizontal bars -->
+    <!-- Content area => 2x3 grid => 5 charts + summary -->
     <div id="content">
-      <!-- 1) Generation Mix (Horizontal) -->
+      <!-- 1) Yearly Profile -->
       <div class="chart-box">
-        <h3>Generation Mix (Horizontal Bar)</h3>
+        <h3>Yearly Profile</h3>
+        <div class="chart-container">
+          <canvas id="yearlyChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 2) January -->
+      <div class="chart-box">
+        <h3>January (7 days)</h3>
+        <div class="chart-container">
+          <canvas id="janChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 3) July -->
+      <div class="chart-box">
+        <h3>July (7 days)</h3>
+        <div class="chart-container">
+          <canvas id="julChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 4) Generation Mix (Horizontal) -->
+      <div class="chart-box">
+        <h3>Generation Mix</h3>
         <div class="chart-container">
           <canvas id="genMixChart"></canvas>
         </div>
       </div>
 
-      <!-- 2) LCOE Breakdown (Horizontal) -->
+      <!-- 5) LCOE Breakdown (Horizontal) -->
       <div class="chart-box">
-        <h3>LCOE Breakdown (Horizontal Bar)</h3>
+        <h3>LCOE Breakdown</h3>
         <div class="chart-container">
           <canvas id="lcoeChart"></canvas>
         </div>
+      </div>
+
+      <!-- 6) Summary Box -->
+      <div class="chart-box">
+        <h3>Summary</h3>
+        <div id="summary"></div>
       </div>
     </div>
   </div>
@@ -434,5 +467,8 @@
       });
     });
   </script>
+
+  <!-- Link to your model.js (the LCOE logic + charts) -->
+  <script src="model.js"></script>
 </body>
 </html>
