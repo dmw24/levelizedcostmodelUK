@@ -1,5 +1,5 @@
 :root {
-  /* Original theme variables + snippet theme */
+  /* Original theme variables */
   --slate-blue: #192238;
   --off-white: #eceff5;
   --white: #fff;
@@ -13,6 +13,7 @@
   --transparent: #fff0;
   --ash-blue: #dee6ef;
 
+  /* New theme variables from provided code */
   --color_theme_bg_pop: #13ce74;
   --background_pop: #13ce74;
   --color_theme_bg_web: #ffffff;
@@ -106,11 +107,10 @@ header.container p.disclaimer {
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 }
 
-/* The main layout: sidebar + content */
 .sim-container {
   display: flex;
-  /* Let content scroll if needed, so it doesn't overflow off screen */
-  height: auto;
+  /* If content is cut off, remove or comment out the next line or add overflow-y */
+  height: calc(100vh - 150px);
   gap: 20px;
 }
 
@@ -137,64 +137,7 @@ header.container p.disclaimer {
   border-radius: 8px;
 }
 
-/* Chart grid */
-#chartSection {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 20px;
-}
-
-/* Each chart box or summary box */
-.chart-box {
-  background: var(--white);
-  border: 1px solid var(--grey-blue);
-  border-radius: 8px;
-  padding: 1rem;
-}
-.chart-box h3 {
-  margin-top: 0;
-}
-#summary {
-  min-height: 150px;
-}
-
-/* Fieldset / form inputs */
-fieldset {
-  margin-bottom: 20px;
-}
-fieldset legend {
-  border-left: 4px solid var(--color_theme_accent);
-  padding-left: 8px;
-  font-size: 1.1em;
-  margin-bottom: 10px;
-}
-fieldset label {
-  border-left: 2px solid var(--grey-blue);
-  padding-left: 5px;
-  margin-bottom: 5px;
-  display: block;
-  font-weight: 600;
-}
-input[type="number"],
-select {
-  width: 100%;
-  padding: 0.4rem;
-  border: 1px solid var(--grey-blue);
-  border-radius: 4px;
-  font-size: 0.95rem;
-  background: var(--white);
-  color: var(--slate-blue);
-}
-
-/* Collapsible group toggles */
-#sidebar h2 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  font-size: 1.8em;
-  font-weight: 500;
-  border-bottom: 1px solid var(--grey-blue);
-  padding-bottom: 0.5rem;
-}
+/* Collapsible group styling */
 .group-title {
   margin: 15px 0 10px 0;
   font-size: 1.5em;
@@ -229,41 +172,59 @@ select {
   margin-bottom: 20px;
 }
 
-/* Chart controls (optional) */
-#chartControls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 1rem;
+fieldset {
+  margin-bottom: 20px;
 }
-#chartControls label {
-  margin: 0;
+fieldset legend {
+  border-left: 4px solid var(--color_theme_accent);
+  padding-left: 8px;
+  font-size: 1.1em;
+  margin-bottom: 10px;
+}
+fieldset label {
+  border-left: 2px solid var(--grey-blue);
+  padding-left: 5px;
+  margin-bottom: 5px;
+  display: block;
   font-weight: 600;
-  white-space: nowrap;
 }
-#chartControls select {
-  min-width: 150px;
+input[type="number"],
+select {
+  width: 100%;
   padding: 0.4rem;
   border: 1px solid var(--grey-blue);
   border-radius: 4px;
+  font-size: 0.95rem;
   background: var(--white);
   color: var(--slate-blue);
 }
-#chartControls button {
-  padding: 8px 15px;
-  font-size: 0.9em;
-  border: none;
-  border-radius: 4px;
-  background-color: var(--color_theme_bg_pop);
-  color: var(--slate-blue);
-  cursor: pointer;
-  transition: background-color 0.2s;
+
+/* Chart boxes */
+.chart-box {
+  background: var(--white);
+  border: 1px solid var(--grey-blue);
+  border-radius: 6px;
+  margin-bottom: 20px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
 }
-#chartControls button:hover {
-  background-color: var(--background_pop_darken);
+.chart-box h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.2em;
+}
+.chart-container {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.chart-container canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
-/* Responsive tweak for narrower screens */
+/* Responsive tweak */
 @media screen and (max-width: 767px) {
   .sim-container {
     flex-direction: column;
@@ -276,7 +237,7 @@ select {
   }
 }
 
-/* FOOTER */
+/* Footer */
 footer {
   position: fixed;
   bottom: 0;
@@ -291,10 +252,4 @@ footer {
 }
 footer strong {
   font-weight: bold;
-}
-
-/* Canvas styling (optional) */
-canvas {
-  max-width: 100%;
-  margin-bottom: 1.5rem;
 }
