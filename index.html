@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LCOE Calculator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>LCOE Calculator</h1>
+
+  <!-- === Input Panel === -->
+  <section id="inputs">
+    <h2>System Configuration</h2>
+    <div class="input-group">
+      <label for="solarCap">Solar Capacity (GW):</label>
+      <input type="number" id="solarCap" value="6" step="0.1" />
+    </div>
+    <div class="input-group">
+      <label for="batteryCap">Battery Capacity (GWh):</label>
+      <input type="number" id="batteryCap" value="10" step="1" />
+    </div>
+
+    <h2>Assumptions</h2>
+    <div class="input-group">
+      <label for="gasCapex">Gas Capex (GBP/kW):</label>
+      <input type="number" id="gasCapex" value="800" step="1" />
+    </div>
+    <div class="input-group">
+      <label for="solarCapex">Solar Capex (GBP/kW):</label>
+      <input type="number" id="solarCapex" value="450" step="1" />
+    </div>
+    <div class="input-group">
+      <label for="batteryCapex">Battery Capex (GBP/kWh):</label>
+      <input type="number" id="batteryCapex" value="200" step="1" />
+    </div>
+    <div class="input-group">
+      <label for="gasFixedOM">Gas Fixed O&M (GBP/MW/yr):</label>
+      <input type="number" id="gasFixedOM" value="18000" step="100" />
+    </div>
+    <div class="input-group">
+      <label for="solarFixedOM">Solar Fixed O&M (GBP/MW/yr):</label>
+      <input type="number" id="solarFixedOM" value="8000" step="100" />
+    </div>
+    <div class="input-group">
+      <label for="batteryFixedOM">Battery Fixed O&M (GBP/MW/yr):</label>
+      <input type="number" id="batteryFixedOM" value="6000" step="100" />
+    </div>
+    <div class="input-group">
+      <label for="gasVarOM">Gas Variable O&M (GBP/MWh):</label>
+      <input type="number" id="gasVarOM" value="4" step="1" />
+    </div>
+    <div class="input-group">
+      <label for="gasFuel">Gas Fuel (GBP/MWh):</label>
+      <input type="number" id="gasFuel" value="40" step="1" />
+    </div>
+    <div class="input-group">
+      <label for="gasEfficiency">Gas Efficiency (%):</label>
+      <input type="number" id="gasEfficiency" value="45" step="1" />
+    </div>
+    <div class="input-group">
+      <label for="inverterRatio">Inverter Clipping Ratio:</label>
+      <input type="number" id="inverterRatio" value="1.2" step="0.1" />
+    </div>
+    <div class="input-group">
+      <label for="waccFossil">WACC Fossil (%):</label>
+      <input type="number" id="waccFossil" value="8" step="0.1" />
+    </div>
+    <div class="input-group">
+      <label for="waccRenew">WACC Solar & Battery (%):</label>
+      <input type="number" id="waccRenew" value="5" step="0.1" />
+    </div>
+    <div class="input-group">
+      <label for="lifetimeFossil">Lifetime (fossil) (years):</label>
+      <input type="number" id="lifetimeFossil" value="25" step="1" />
+    </div>
+    <div class="input-group">
+      <label for="lifetimeSolar">Lifetime (solar) (years):</label>
+      <input type="number" id="lifetimeSolar" value="35" step="1" />
+    </div>
+
+    <button onclick="runModel()">Run Model</button>
+  </section>
+
+  <!-- === Output Dashboard === -->
+  <section id="results">
+    <h2>Results</h2>
+    <div class="chart-row">
+      <div>
+        <h3>Annual Generation Mix</h3>
+        <canvas id="annualMixChart"></canvas>
+      </div>
+      <div>
+        <h3>Yearly Generation Profile</h3>
+        <canvas id="yearlyProfileChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-row">
+      <div>
+        <h3>Selected January Days</h3>
+        <canvas id="janProfileChart"></canvas>
+      </div>
+      <div>
+        <h3>Selected July Days</h3>
+        <canvas id="julProfileChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-row">
+      <div>
+        <h3>Levelized Cost Breakdown</h3>
+        <canvas id="lcoeBreakdownChart"></canvas>
+      </div>
+      <div>
+        <h3>Summary</h3>
+        <div id="summary"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Load external libraries (Chart.js + PapaParse) and your model code -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <script src="model.js"></script>
+</body>
+</html>
