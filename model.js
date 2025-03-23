@@ -210,7 +210,7 @@ function runModel() {
 
   // Show text below chart
   const resultDiv = document.getElementById("levelizedCostResult");
-  resultDiv.innerHTML = `Total levelized system cost: ${systemTotal.toFixed(2)} GBP/MWh`;
+  resultDiv.innerHTML = `Total levelized system cost: ${systemTotal.toFixed(0)} GBP/MWh`;
 }
 
 /** clamp() => ensures no input is below 0.0001 */
