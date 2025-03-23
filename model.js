@@ -193,7 +193,7 @@ function runModel() {
   updateJanChart(totalSolarFlow, batteryFlow, gasFlow);
   updateJulChart(totalSolarFlow, batteryFlow, gasFlow);
 
-  // Final stacked bar with 3 bars: "Capex", "Opex", "Total"
+  // Final stacked bar with 3 bars: "Capex", "Opex", "Total" split by Gas, Solar, Battery
   updateSystemCostChart({
     gasCapex: gasCapexLcoe,
     gasOpex: gasOpexLcoe,
@@ -228,33 +228,77 @@ function calcCRF(rate, years) {
 
 /** ========== Charts ========== */
 
-// 1) Generation horizontal bar => now 2 bars: "Generation" (Gas + Used Solar + Battery)
-//    and "Curtailment" with data labels showing % of total.
+// 1) Generation horizontal bar => now 2 bars:
+//    - The "Generation" bar is a stacked bar split into Solar, Battery and Gas (using the same colors as elsewhere).
+//    - The "Curtailment" bar shows curtailed solar.
+//    Data labels on the top segment of each stack show the % share (relative to total generation+curtailment).
 let generationChart;
 function updateGenerationChart({ gasMWh, solarUsedMWh, batteryMWh, curtailedMWh }) {
   const ctx = document.getElementById("annualMixChart").getContext("2d");
   if (generationChart) generationChart.destroy();
 
-  // Calculate the total generation (from gas, used solar, and battery discharge)
-  const generationMWh = gasMWh + solarUsedMWh + batteryMWh;
   // Convert MWh to GWh for charting
-  const generationGWh = generationMWh / 1000;
+  const gasGWh = gasMWh / 1000;
+  const solarGWh = solarUsedMWh / 1000;
+  const batteryGWh = batteryMWh / 1000;
   const curtailedGWh = curtailedMWh / 1000;
-  const totalGWh = generationGWh + curtailedGWh;
 
-  // Compute the percentage of the total for each bar
-  const generationPct = (generationGWh / totalGWh) * 100;
-  const curtailedPct = (curtailedGWh / totalGWh) * 100;
+  // Total values for generation and curtailment
+  const totalGeneration = gasGWh + solarGWh + batteryGWh;
+  const totalOverall = totalGeneration + curtailedGWh;
+
+  // Calculate percentages
+  const generationPct = (totalGeneration / totalOverall) * 100;
+  const curtailedPct = (curtailedGWh / totalOverall) * 100;
 
   generationChart = new Chart(ctx, {
     type: "bar",
     data: {
       labels: ["Generation", "Curtailment"],
-      datasets: [{
-        label: "GWh",
-        data: [generationGWh, curtailedGWh],
-        backgroundColor: ["#4db6e4", "#aaaaaa"]
-      }]
+      datasets: [
+        {
+          label: "Solar",
+          data: [solarGWh, 0],
+          backgroundColor: "#f4d44d",
+          stack: "generation"
+        },
+        {
+          label: "Battery",
+          data: [batteryGWh, 0],
+          backgroundColor: "#4db6e4",
+          stack: "generation"
+        },
+        {
+          label: "Gas",
+          data: [gasGWh, 0],
+          backgroundColor: "#f45d5d",
+          stack: "generation",
+          // Only the top segment of the "Generation" stack shows the % label.
+          datalabels: {
+            formatter: function(value, context) {
+              if (context.dataIndex === 0) {
+                return generationPct.toFixed(1) + "%";
+              }
+              return "";
+            }
+          }
+        },
+        {
+          label: "Curtailment",
+          data: [0, curtailedGWh],
+          backgroundColor: "#aaaaaa",
+          stack: "curtailment",
+          // Only the "Curtailment" bar shows its percentage label.
+          datalabels: {
+            formatter: function(value, context) {
+              if (context.dataIndex === 1) {
+                return curtailedPct.toFixed(1) + "%";
+              }
+              return "";
+            }
+          }
+        }
+      ]
     },
     options: {
       indexAxis: "y",
@@ -273,17 +317,7 @@ function updateGenerationChart({ gasMWh, solarUsedMWh, batteryMWh, curtailedMWh 
           display: true,
           text: "Annual Generation (GWh)"
         },
-        // Data labels display the percentage share of total generation.
         datalabels: {
-          formatter: function(value, context) {
-            const label = context.chart.data.labels[context.dataIndex];
-            if (label === "Generation") {
-              return generationPct.toFixed(1) + "%";
-            } else if (label === "Curtailment") {
-              return curtailedPct.toFixed(1) + "%";
-            }
-            return "";
-          },
           color: "#000",
           anchor: "end",
           align: "right"
@@ -341,7 +375,7 @@ function updateYearlyProfileChart(solarFlow, batteryFlow, gasFlow) {
   });
 }
 
-// 3) January => bar chart for first 7 days => 168 hours
+// 3) January => bar chart for first 7 days (168 hours)
 let janProfileChart;
 function updateJanChart(solarFlow, batteryFlow, gasFlow) {
   const ctx = document.getElementById("janProfileChart").getContext("2d");
@@ -392,7 +426,7 @@ function updateJanChart(solarFlow, batteryFlow, gasFlow) {
   });
 }
 
-// 4) July => bar chart for ~mid-year => pick 7 days from end of June
+// 4) July => bar chart for ~mid-year (7 days from end of June)
 let julProfileChart;
 function updateJulChart(solarFlow, batteryFlow, gasFlow) {
   const ctx = document.getElementById("julProfileChart").getContext("2d");
