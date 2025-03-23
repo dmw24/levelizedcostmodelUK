@@ -314,7 +314,8 @@ function updateGenerationChart({ gasMWh, solarUsedMWh, batteryMWh, curtailedMWh 
           beginAtZero: true
         },
         y: {
-          title: { display: false }
+          title: { display: false },
+          offset: true
         }
       },
       plugins: {
