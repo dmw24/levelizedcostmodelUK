@@ -155,7 +155,7 @@ function runModel() {
   const batteryCapexTotal = batteryCapMWh * 1000 * batteryCapex;
   const crfBattery = calcCRF(waccRenew, 25);
   const batteryAnnualCapex = batteryCapexTotal * crfBattery;
-  const batteryMW = batteryCapMWh / 4;
+  const batteryMW = batteryCapMWh / 6;
   const batteryAnnualFixedOM = batteryMW * batteryFixedOM;
   const batteryAnnualCost = batteryAnnualCapex + batteryAnnualFixedOM;
 
