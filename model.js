@@ -228,25 +228,32 @@ function calcCRF(rate, years) {
 
 /** ========== Charts ========== */
 
-// 1) Generation horizontal bar => 4 bars: Gas, Used Solar, Battery, Curtailed
+// 1) Generation horizontal bar => now 2 bars: "Generation" (Gas + Used Solar + Battery)
+//    and "Curtailment" with data labels showing % of total.
 let generationChart;
 function updateGenerationChart({ gasMWh, solarUsedMWh, batteryMWh, curtailedMWh }) {
   const ctx = document.getElementById("annualMixChart").getContext("2d");
   if (generationChart) generationChart.destroy();
 
+  // Calculate the total generation (from gas, used solar, and battery discharge)
+  const generationMWh = gasMWh + solarUsedMWh + batteryMWh;
+  // Convert MWh to GWh for charting
+  const generationGWh = generationMWh / 1000;
+  const curtailedGWh = curtailedMWh / 1000;
+  const totalGWh = generationGWh + curtailedGWh;
+
+  // Compute the percentage of the total for each bar
+  const generationPct = (generationGWh / totalGWh) * 100;
+  const curtailedPct = (curtailedGWh / totalGWh) * 100;
+
   generationChart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels: ["Gas", "Used Solar", "Battery", "Curtailed Solar"],
+      labels: ["Generation", "Curtailment"],
       datasets: [{
-        label: "Total GWh",
-        data: [
-          gasMWh / 1000,
-          solarUsedMWh / 1000,
-          batteryMWh / 1000,
-          curtailedMWh / 1000
-        ],
-        backgroundColor: ["#f45d5d", "#f4d44d", "#4db6e4", "#aaaaaa"]
+        label: "GWh",
+        data: [generationGWh, curtailedGWh],
+        backgroundColor: ["#4db6e4", "#aaaaaa"]
       }]
     },
     options: {
@@ -265,6 +272,21 @@ function updateGenerationChart({ gasMWh, solarUsedMWh, batteryMWh, curtailedMWh 
         title: {
           display: true,
           text: "Annual Generation (GWh)"
+        },
+        // Data labels display the percentage share of total generation.
+        datalabels: {
+          formatter: function(value, context) {
+            const label = context.chart.data.labels[context.dataIndex];
+            if (label === "Generation") {
+              return generationPct.toFixed(1) + "%";
+            } else if (label === "Curtailment") {
+              return curtailedPct.toFixed(1) + "%";
+            }
+            return "";
+          },
+          color: "#000",
+          anchor: "end",
+          align: "right"
         }
       }
     }
@@ -421,7 +443,7 @@ function updateJulChart(solarFlow, batteryFlow, gasFlow) {
   });
 }
 
-// 5) Stacked bar for "Capex", "Opex", "Total" splitted by Gas, Solar, Battery
+// 5) Stacked bar for "Capex", "Opex", "Total" split by Gas, Solar, Battery
 let systemCostChart;
 function updateSystemCostChart({
   gasCapex, gasOpex,
