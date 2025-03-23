@@ -74,12 +74,17 @@ function runModel() {
   // For the hourly chart, we show total clipped solar
   const totalSolarFlow = new Array(HOURS_PER_YEAR).fill(0);
 
-  const maxSolarAC = solarCapMW / inverterRatio;
-
   for (let h = 0; h < HOURS_PER_YEAR; h++) {
     let demand = 1000; // 1 GW => 1000 MWh/h
-    const rawSolarMW = (solarProfile[h] || 0) * solarCapMW;
-    const clippedSolarMW = Math.min(rawSolarMW, maxSolarAC);
+
+    // --- New inverter clipping logic ---
+    // Get the normalized raw solar value (assumed between 0 and 1)
+    const rawSolarFraction = solarProfile[h] || 0;
+    // Multiply by the inverter clipping ratio and clip to a maximum of 1
+    const clippedFraction = Math.min(1, rawSolarFraction * inverterRatio);
+    // Compute the actual solar generation in MW (AC output)
+    const clippedSolarMW = clippedFraction * solarCapMW;
+    // ------------------------------------
 
     totalSolarFlow[h] = clippedSolarMW;
 
